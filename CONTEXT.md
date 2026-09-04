@@ -47,3 +47,11 @@ _Avoid_: cached source, conversion history
 **Last Error**:
 The most recent failed Clipboard Handoff in the running app session, cleared by the next successful Clipboard Handoff or by restarting Dropshot.
 _Avoid_: Current Error, error history, conversion history
+
+**Validation Contract**:
+The release-blocking set of automated behavior tests, real-system compatibility checks, performance thresholds, failure scenarios, and required evidence for the Dropshot MVP. The MVP Validation Contract applies to macOS 26 on Apple silicon; a blocked mandatory check is not a pass.
+_Avoid_: test plan, QA suggestions
+
+**Vertical Slice**:
+One red-green implementation increment: a single failing behavior test at a pre-agreed public seam, followed by the minimum production behavior needed to make it pass and the required Validation Contract evidence.
+_Avoid_: development phase, test batch

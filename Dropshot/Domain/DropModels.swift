@@ -37,6 +37,5 @@ enum ImageConversionFailure: Error, Equatable, Sendable {
 struct ClipboardHandoff: Equatable, Sendable {
     let dropID: DropID
     let format: OutputFormat
-    let requestedFormatData: Data
-    let tiffData: Data
+    let convertedImage: ConvertedImage
 }

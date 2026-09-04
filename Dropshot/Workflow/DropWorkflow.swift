@@ -38,8 +38,7 @@ struct DropWorkflow {
                     ClipboardHandoff(
                         dropID: request.dropID,
                         format: request.format,
-                        requestedFormatData: image.requestedFormatData,
-                        tiffData: image.tiffData
+                        convertedImage: image
                     )
                 )
             ]

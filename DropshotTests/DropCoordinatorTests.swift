@@ -25,8 +25,10 @@ struct DropCoordinatorTests {
             ClipboardHandoff(
                 dropID: DropID(1),
                 format: .jpeg,
-                requestedFormatData: jpegData,
-                tiffData: tiffData
+                convertedImage: ConvertedImage(
+                    requestedFormatData: jpegData,
+                    tiffData: tiffData
+                )
             )
         ])
     }

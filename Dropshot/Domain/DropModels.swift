@@ -11,7 +11,7 @@ enum OutputFormat: Equatable, Sendable {
     case png
 }
 
-struct DropGeneration: Equatable, Sendable {
+struct DropID: Equatable, Sendable {
     let value: UInt64
 
     init(_ value: UInt64) {
@@ -20,7 +20,7 @@ struct DropGeneration: Equatable, Sendable {
 }
 
 struct ConversionRequest: Equatable, Sendable {
-    let generation: DropGeneration
+    let dropID: DropID
     let input: DroppedInput
     let format: OutputFormat
 }
@@ -35,7 +35,7 @@ enum ImageConversionFailure: Error, Equatable, Sendable {
 }
 
 struct ClipboardHandoff: Equatable, Sendable {
-    let generation: DropGeneration
+    let dropID: DropID
     let format: OutputFormat
     let requestedFormatData: Data
     let tiffData: Data

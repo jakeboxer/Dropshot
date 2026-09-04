@@ -19,11 +19,11 @@ struct DropCoordinatorTests {
 
         let conversionRequests = await converter.requests
         #expect(conversionRequests == [
-            ConversionRequest(generation: DropGeneration(1), input: input, format: .jpeg)
+            ConversionRequest(dropID: DropID(1), input: input, format: .jpeg)
         ])
         #expect(clipboard.handoffs == [
             ClipboardHandoff(
-                generation: DropGeneration(1),
+                dropID: DropID(1),
                 format: .jpeg,
                 requestedFormatData: jpegData,
                 tiffData: tiffData

@@ -32,9 +32,9 @@ final class DropCoordinator {
             case .performClipboardHandoff(let handoff):
                 do {
                     try clipboard.perform(handoff)
-                    _ = workflow.handle(.clipboardHandoffCompleted(generation: handoff.generation))
+                    _ = workflow.handle(.clipboardHandoffCompleted(dropID: handoff.dropID))
                 } catch {
-                    _ = workflow.handle(.clipboardHandoffFailed(generation: handoff.generation))
+                    _ = workflow.handle(.clipboardHandoffFailed(dropID: handoff.dropID))
                     throw error
                 }
             }

@@ -5,8 +5,8 @@ struct DropWorkflow {
             request: ConversionRequest,
             result: Result<ConvertedImage, ImageConversionFailure>
         )
-        case clipboardHandoffCompleted(generation: DropGeneration)
-        case clipboardHandoffFailed(generation: DropGeneration)
+        case clipboardHandoffCompleted(dropID: DropID)
+        case clipboardHandoffFailed(dropID: DropID)
     }
 
     enum Effect: Equatable, Sendable {
@@ -14,29 +14,29 @@ struct DropWorkflow {
         case performClipboardHandoff(ClipboardHandoff)
     }
 
-    private(set) var activeGeneration: DropGeneration?
-    private var nextGeneration = DropGeneration(1)
+    private(set) var activeDropID: DropID?
+    private var nextDropID = DropID(1)
 
     mutating func handle(_ event: Event) -> [Effect] {
         switch event {
         case .acceptedDrop(let acceptedDrop):
             let request = ConversionRequest(
-                generation: nextGeneration,
+                dropID: nextDropID,
                 input: acceptedDrop.input,
                 format: .jpeg
             )
-            activeGeneration = nextGeneration
-            nextGeneration = DropGeneration(nextGeneration.value + 1)
+            activeDropID = nextDropID
+            nextDropID = DropID(nextDropID.value + 1)
             return [.convert(request)]
 
         case .conversionCompleted(let request, .success(let image)):
-            guard request.generation == activeGeneration else {
+            guard request.dropID == activeDropID else {
                 return []
             }
             return [
                 .performClipboardHandoff(
                     ClipboardHandoff(
-                        generation: request.generation,
+                        dropID: request.dropID,
                         format: request.format,
                         requestedFormatData: image.requestedFormatData,
                         tiffData: image.tiffData
@@ -45,18 +45,18 @@ struct DropWorkflow {
             ]
 
         case .conversionCompleted(let request, .failure):
-            guard request.generation == activeGeneration else {
+            guard request.dropID == activeDropID else {
                 return []
             }
-            activeGeneration = nil
+            activeDropID = nil
             return []
 
-        case .clipboardHandoffCompleted(let generation),
-             .clipboardHandoffFailed(let generation):
-            guard generation == activeGeneration else {
+        case .clipboardHandoffCompleted(let dropID),
+             .clipboardHandoffFailed(let dropID):
+            guard dropID == activeDropID else {
                 return []
             }
-            activeGeneration = nil
+            activeDropID = nil
             return []
         }
     }

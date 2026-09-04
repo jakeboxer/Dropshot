@@ -2,7 +2,7 @@
 
 ## Public seam and behavior
 
-`DropCoordinator.accept(_:)` is the public-behavior seam. Given an Accepted Drop, it drives the pure `DropWorkflow` and injected test adapters. The observed behavior is one JPEG conversion request followed by one Clipboard Handoff containing the converted JPEG and TIFF representations, both tagged with the same generation identity.
+`DropCoordinator.accept(_:)` is the public-behavior seam. Given an Accepted Drop, it drives the pure `DropWorkflow` and injected test adapters. The observed behavior is one JPEG conversion request followed by one Clipboard Handoff containing the converted JPEG and TIFF representations, both tagged with the same Drop ID.
 
 ## Failing test
 
@@ -20,8 +20,8 @@ error: cannot find type 'ClipboardHandoff' in scope
 
 ## Minimum production change
 
-- Added domain values for Accepted Drops, generation-tagged conversion requests, converted representations, and Clipboard Handoffs.
-- Added `DropWorkflow`, which owns the active generation and emits declarative conversion and Clipboard Handoff effects.
+- Added domain values for Accepted Drops, ID-tagged conversion requests, converted representations, and Clipboard Handoffs.
+- Added `DropWorkflow`, which owns the active Drop ID and emits declarative conversion and Clipboard Handoff effects.
 - Added the main-actor `DropCoordinator`, which executes effects through injected conversion and clipboard adapters and returns conversion results to the workflow.
 
 No AppKit conversion or pasteboard implementation is part of this tracer.

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dropshot Drop Zone — Throwaway Prototype</title>
+  <!-- Three throwaway Drop Zone variants, switchable via ?variant=A|B|C. -->
+  <style>
+    :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; overflow: hidden; color: #fff; background: linear-gradient(145deg,#426b89,#b17969 62%,#412f43); }
+    body::before { content:""; position:fixed; inset:28px 0 0; background: radial-gradient(circle at 28% 28%,#ffffff26,transparent 24%),radial-gradient(circle at 72% 64%,#ffffff18,transparent 22%); }
+    .menubar { position:fixed; inset:0 0 auto; height:28px; display:flex; align-items:center; padding:0 14px; gap:20px; color:#151515; background:#f3f3f3dd; backdrop-filter:blur(24px); font-size:13px; font-weight:600; z-index:4; }
+    .menubar .spacer { flex:1; }
+    .dropshot-item { width:24px; text-align:center; font-size:16px; position:relative; }
+    .anchor { position:fixed; top:28px; left:calc(50% + 164px); width:1px; height:1px; z-index:3; }
+    .desktop-note { position:fixed; left:28px; bottom:24px; color:#ffffffc8; font-size:12px; line-height:1.5; }
+    .zone { position:absolute; transform:translateX(-50%) translateY(5px) scale(.96); transform-origin:50% 0; opacity:0; pointer-events:none; transition:opacity 140ms ease, transform 180ms cubic-bezier(.2,.9,.2,1); filter:drop-shadow(0 18px 28px #0005); }
+    .zone.visible { opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(8px) scale(1); }
+    .glass { background:#25252be8; border:1px solid #ffffff2c; box-shadow:inset 0 1px #ffffff18; backdrop-filter:blur(30px) saturate(1.25); }
+    .variant { display:none; }
+    .variant.active { display:block; }
+    .a { width:286px; border-radius:16px; padding:14px; }
+    .a .target { display:flex; align-items:center; gap:12px; min-height:78px; padding:12px; border:1.5px dashed #ffffff5c; border-radius:11px; background:#ffffff0a; transition:background 120ms,border 120ms; }
+    .a .icon { width:42px; height:42px; display:grid; place-items:center; border-radius:10px; background:#0a84ff; font-size:22px; }
+    .title { font-size:14px; font-weight:650; letter-spacing:-.01em; }
+    .sub { margin-top:3px; color:#ffffffa5; font-size:11.5px; }
+    .key { display:inline-block; margin-top:7px; padding:2px 6px; border-radius:5px; color:#fff; background:#ffffff1c; font-size:10px; }
+    .b { width:202px; border-radius:22px; padding:18px 16px 14px; text-align:center; }
+    .b .ring { width:84px; height:84px; margin:auto; display:grid; place-items:center; border-radius:50%; border:3px solid #0a84ff; box-shadow:inset 0 0 0 7px #0a84ff20; font-size:29px; transition:transform 160ms; }
+    .b .title { margin-top:11px; }
+    .b .format-readout { margin-top:10px; color:#ffffff9c; font-size:10px; }
+    .b .format-readout strong { color:#fff; font-weight:650; }
+    .c { width:328px; border-radius:10px; overflow:hidden; }
+    .c .row { display:flex; align-items:center; min-height:60px; padding:10px 12px; gap:11px; }
+    .c .file { width:38px; height:42px; display:grid; place-items:center; border-radius:5px; color:#222; background:#f2f2f2; font-size:9px; font-weight:800; }
+    .c .copy { margin-left:auto; padding:7px 10px; border-radius:7px; color:white; background:#0a84ff; font-size:11px; font-weight:650; }
+    .c .strip { padding:6px 12px; color:#ffffffa0; background:#0004; font-size:10px; text-align:center; }
+    .state-success .accent { background:#30d158!important; border-color:#30d158!important; }
+    .state-failure .accent { background:#ff453a!important; border-color:#ff453a!important; }
+    .state-cancel .zone,.state-dismissed .zone { opacity:0!important; transform:translateX(-50%) translateY(5px) scale(.96)!important; }
+    .state-png .accent { background:#bf5af2!important; border-color:#bf5af2!important; }
+    .state-eligible .target { background:#0a84ff18; border-color:#0a84ff; }
+    .state-eligible .ring { transform:scale(1.04); }
+    .controls { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); z-index:9; display:flex; align-items:center; gap:4px; padding:6px; border-radius:12px; background:#121216ed; border:1px solid #ffffff2b; box-shadow:0 12px 28px #0007; }
+    button { border:0; color:#ddd; background:transparent; padding:7px 9px; border-radius:7px; font:600 11px -apple-system,BlinkMacSystemFont,sans-serif; cursor:pointer; }
+    button:hover { background:#ffffff13; }
+    button.on { color:#fff; background:#0a84ff; }
+    .divider { width:1px; height:21px; margin:0 3px; background:#ffffff24; }
+    .variant-label { min-width:148px; text-align:center; font-size:11px; color:#ffffffc8; }
+    .state-readout { position:fixed; right:18px; bottom:18px; padding:8px 10px; border-radius:8px; color:#ddd; background:#111b; font:10px ui-monospace,SFMono-Regular,monospace; z-index:6; }
+    @media (prefers-reduced-motion: reduce) { .zone { transform:translateX(-50%) translateY(8px)!important; transition:opacity 140ms ease; } .a .target,.b .ring { transition:none; } }
+  </style>
+</head>
+<body class="state-eligible">
+  <div class="menubar"><span>●</span><span>Finder</span><span>File</span><span>Edit</span><span>View</span><span class="spacer"></span><span class="dropshot-item">◈</span><span>⌁</span><span>Thu Sep 3&nbsp; 9:41 AM</span></div>
+  <div class="anchor">
+    <section class="zone glass variant a" data-variant="A">
+      <div class="target"><div class="icon accent">⇩</div><div><div class="title state-title">Drop to copy as JPEG</div><div class="sub state-sub">Ready for one HEIC image</div><span class="key">Hold ⌥ for PNG</span></div></div>
+    </section>
+    <section class="zone glass variant b" data-variant="B">
+      <div class="ring accent"><span class="orb-icon">＋</span></div><div class="title">Drop HEIC here</div><div class="sub">Release to copy as JPEG</div><div class="format-readout">Hold ⌥ for <strong>PNG</strong></div>
+    </section>
+    <section class="zone glass variant c" data-variant="C">
+      <div class="row"><div class="file">HEIC</div><div><div class="title">IMG_1842.HEIC</div><div class="sub state-sub">Will convert to JPEG</div></div><div class="copy accent">Drop to Copy</div></div><div class="strip state-title">Hold Option to copy as PNG</div>
+    </section>
+  </div>
+  <div class="desktop-note">THROWAWAY PROTOTYPE<br>Use the controls to compare hierarchy and motion.<br>Press ←/→ to change variants; hold Option for PNG.</div>
+  <div class="state-readout"></div>
+  <nav class="controls" aria-label="Prototype controls">
+    <button id="prev" aria-label="Previous variant">←</button><span class="variant-label"></span><button id="next" aria-label="Next variant">→</button><span class="divider"></span>
+    <button data-state="eligible" class="on">Eligible</button><button data-state="png">⌥ PNG</button><button data-state="success">Success</button><button data-state="failure">Failure</button><button data-state="cancel">Cancel</button>
+  </nav>
+  <script>
+    const variants = { A: 'Instruction Card', B: 'Format Orb', C: 'File Action Row' };
+    const keys = Object.keys(variants);
+    const params = new URLSearchParams(location.search);
+    let variant = keys.includes(params.get('variant')) ? params.get('variant') : 'A';
+    let state = 'eligible';
+    const orbCopy = {
+      eligible:['Drop HEIC here','Release to copy as JPEG','Hold ⌥ for <strong>PNG</strong>','＋'],
+      png:['Drop HEIC here','Release to copy as PNG','Release ⌥ for <strong>JPEG</strong>','＋'],
+      success:['Copied','Ready to paste','Copied as <strong>JPEG</strong>','✓'],
+      failure:['Couldn’t Convert','Open Dropshot for details','Original unchanged','!'],
+      cancel:['Drag Cancelled','','','＋'],
+      dismissed:['','','','＋']
+    };
+    let dismissalTimer;
+    let activeFormat='JPEG';
+    function render() {
+      document.body.className = `state-${state}`;
+      document.querySelectorAll('.variant').forEach(el => el.classList.toggle('active',el.dataset.variant===variant));
+      document.querySelectorAll('.zone').forEach(el => el.classList.toggle('visible',state!=='cancel'));
+      document.querySelectorAll('[data-state]').forEach(el => el.classList.toggle('on',el.dataset.state===state));
+      document.querySelector('.variant-label').textContent = `${variant} · ${variants[variant]}`;
+      document.querySelector('.state-readout').textContent = JSON.stringify({variant,state,format:state==='png'?'PNG':'JPEG'});
+      const orb=document.querySelector('.b');
+      orb.querySelector('.title').textContent=orbCopy[state][0];
+      orb.querySelector('.sub').textContent=orbCopy[state][1];
+      orb.querySelector('.format-readout').innerHTML=state==='success'?`Copied as <strong>${activeFormat}</strong>`:orbCopy[state][2];
+      orb.querySelector('.orb-icon').textContent=orbCopy[state][3]||'＋';
+      params.set('variant',variant); history.replaceState(null,'',`?${params}`);
+    }
+    function cycle(delta){ variant=keys[(keys.indexOf(variant)+delta+keys.length)%keys.length]; render(); }
+    document.querySelector('#prev').onclick=()=>cycle(-1); document.querySelector('#next').onclick=()=>cycle(1);
+    document.querySelectorAll('[data-state]').forEach(el=>el.onclick=()=>{clearTimeout(dismissalTimer);state=el.dataset.state;if(state==='png')activeFormat='PNG';if(state==='eligible')activeFormat='JPEG';render();if(state==='success'||state==='failure'){dismissalTimer=setTimeout(()=>{state='dismissed';render();},state==='success'?800:3000);}});
+    addEventListener('keydown',e=>{if(['INPUT','TEXTAREA'].includes(e.target.tagName)||e.target.isContentEditable)return;if(e.key==='ArrowLeft')cycle(-1);if(e.key==='ArrowRight')cycle(1);});
+    addEventListener('keydown',e=>{if(e.key==='Alt'){state='png';activeFormat='PNG';render();}}); addEventListener('keyup',e=>{if(e.key==='Alt'){state='eligible';activeFormat='JPEG';render();}});
+    render();
+  </script>
+</body>
+</html>

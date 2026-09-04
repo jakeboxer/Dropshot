@@ -20,6 +20,8 @@ This map plans the MVP; implementation is not part of the effort.
 
 - [Determine the interoperable Clipboard Handoff](issues/02-determine-interoperable-clipboard-handoff.md): publish one item with exact JPEG/PNG bytes plus TIFF fallback; defer filename/file-promise semantics unless the required receiver matrix proves they are needed.
 
+- [Choose the Drop Zone visual and motion language](issues/03-choose-drop-zone-visual-and-motion-language.md): use a compact Format Orb with explicit release-to-copy format text, passive Option guidance, restrained format feedback, silent cancellation, and brief in-zone success or failure confirmation.
+
 ## Not yet specified
 
 - Packaging, signing, sandbox, entitlement, and deployment-target details that depend on the viable system interaction architecture.

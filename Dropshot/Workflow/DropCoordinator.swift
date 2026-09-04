@@ -4,7 +4,7 @@ protocol ImageConverting: Sendable {
 
 @MainActor
 protocol ClipboardPublishing: AnyObject {
-    func perform(_ handoff: ClipboardHandoff) throws
+    func publish(_ handoff: ClipboardHandoff) throws
 }
 
 @MainActor
@@ -31,7 +31,7 @@ final class DropCoordinator {
 
             case .performClipboardHandoff(let handoff):
                 do {
-                    try clipboard.perform(handoff)
+                    try clipboard.publish(handoff)
                     _ = workflow.handle(.clipboardHandoffCompleted(dropID: handoff.dropID))
                 } catch {
                     _ = workflow.handle(.clipboardHandoffFailed(dropID: handoff.dropID))

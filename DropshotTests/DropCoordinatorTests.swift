@@ -52,7 +52,7 @@ private actor ConversionTestAdapter: ImageConverting {
 private final class ClipboardTestAdapter: ClipboardPublishing {
     private(set) var handoffs: [ClipboardHandoff] = []
 
-    func perform(_ handoff: ClipboardHandoff) throws {
+    func publish(_ handoff: ClipboardHandoff) throws {
         handoffs.append(handoff)
     }
 }

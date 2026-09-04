@@ -44,6 +44,14 @@ _Avoid_: lossless conversion, metadata-preserving conversion
 A source file materialized in Dropshot-controlled temporary storage solely to fulfill a file promise and perform the current conversion. Delete it immediately after success or failure, and remove abandoned Dropshot temporary inputs at the next launch.
 _Avoid_: cached source, conversion history
 
+**Release Artifact**:
+The exact arm64 Dropshot app extracted from the DMG offered to users, signed with Developer ID Application, hardened, notarized, and stapled together with its containing DMG. Release evidence is collected from this extracted app rather than from an archive intermediate or Debug product.
+_Avoid_: build, binary, installer
+
+**Release Capabilities**:
+The capabilities granted to the shipped app: App Sandbox plus read-only access to user-selected inputs, sandbox-contained Ephemeral Inputs, clipboard publication, and opt-in main-app launch at login. They exclude Accessibility, Input Monitoring, broad filesystem access, automation, and hardened-runtime exceptions.
+_Avoid_: permissions list, privacy promise
+
 **Last Error**:
 The most recent failed Clipboard Handoff in the running app session, cleared by the next successful Clipboard Handoff or by restarting Dropshot.
 _Avoid_: Current Error, error history, conversion history

@@ -25,6 +25,8 @@ This map plans the MVP; implementation is not part of the effort.
 
 - [Define conversion fidelity and privacy policy](issues/04-define-conversion-fidelity-and-privacy-policy.md): normalize the primary still image to metadata-free 8-bit SDR sRGB at full resolution, with quality-0.90 white-composited JPEG or alpha-preserving PNG, and retain neither temporary inputs nor converted files.
 
+- [Define menu onboarding, feedback, and error experience](issues/05-define-menu-onboarding-feedback-and-error-experience.md): use centered one-time guidance, a compact status-and-settings menu, opt-in login launch, default-on sounds independent of accessibility announcements, and a privacy-sanitized session-scoped Last Error cleared by the next successful Clipboard Handoff.
+
 ## Not yet specified
 
 - Packaging, signing, sandbox, entitlement, and deployment-target details that depend on the viable system interaction architecture.

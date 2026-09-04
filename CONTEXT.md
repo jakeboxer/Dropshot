@@ -36,6 +36,6 @@ _Avoid_: lossless conversion, metadata-preserving conversion
 A source file materialized in Dropshot-controlled temporary storage solely to fulfill a file promise and perform the current conversion. Delete it immediately after success or failure, and remove abandoned Dropshot temporary inputs at the next launch.
 _Avoid_: cached source, conversion history
 
-**Current Error**:
-The most recent failed conversion in the running app session, cleared by the next successful conversion or by restarting Dropshot.
-_Avoid_: error history, conversion history
+**Last Error**:
+The most recent failed Clipboard Handoff in the running app session, cleared by the next successful Clipboard Handoff or by restarting Dropshot.
+_Avoid_: Current Error, error history, conversion history

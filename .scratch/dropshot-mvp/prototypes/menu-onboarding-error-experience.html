@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dropshot Menu Experience — Throwaway Prototype</title>
+  <!-- Three throwaway menu/onboarding variants, switchable via ?variant=A|B|C. -->
+  <style>
+    :root { color-scheme: light dark; font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; overflow:hidden; color:#1d1d1f; background:linear-gradient(140deg,#b8d4e9,#f0cbb9 60%,#b8a6c9); }
+    body::after { content:""; position:fixed; inset:28px 0 0; background:radial-gradient(circle at 25% 30%,#fff8,transparent 28%),radial-gradient(circle at 75% 70%,#fff5,transparent 24%); }
+    .menubar { position:fixed; inset:0 0 auto; height:28px; z-index:4; display:flex; align-items:center; gap:19px; padding:0 14px; background:#f5f5f5df; backdrop-filter:blur(24px); font-size:13px; font-weight:600; }
+    .spacer { flex:1; }
+    .app-icon { width:27px; text-align:center; font-size:17px; }
+    .surface { position:fixed; z-index:5; top:34px; right:125px; width:284px; border:1px solid #0002; border-radius:10px; background:#f5f5f4f2; box-shadow:0 18px 48px #0005,0 2px 8px #0002; backdrop-filter:blur(30px) saturate(1.25); }
+    .onboarding { padding:22px; }
+    .mark { width:45px; height:45px; display:grid; place-items:center; margin-bottom:15px; border-radius:12px; color:white; background:#087bf0; font-size:25px; }
+    h1 { margin:0; font-size:20px; line-height:1.15; letter-spacing:-.02em; }
+    p { margin:9px 0 17px; color:#515154; font-size:13px; line-height:1.42; }
+    label { display:flex; align-items:center; gap:8px; font-size:13px; }
+    input { accent-color:#087bf0; }
+    .primary { display:block; width:100%; margin-top:18px; padding:7px 12px; border:0; border-radius:7px; color:white; background:#087bf0; font:600 13px inherit; }
+    .menu { padding:5px; }
+    .row { min-height:27px; display:flex; align-items:center; padding:3px 9px; border-radius:5px; font-size:13px; }
+    .row.disabled { color:#777; }
+    .row.section-title { color:#555; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+    .row.interactive:hover,.row.selected { color:white; background:#087bf0; }
+    .check { width:18px; }
+    .end { margin-left:auto; color:inherit; }
+    .sep { height:1px; margin:4px 7px; background:#0002; }
+    .submenu { position:absolute; top:65px; right:278px; width:262px; padding:5px; border:1px solid #0002; border-radius:9px; background:#f5f5f4f5; box-shadow:0 14px 34px #0004; }
+    .summary { padding:8px 9px 6px; color:#555; font-size:11.5px; line-height:1.35; }
+    .error-dot { width:7px; height:7px; margin-right:10px; border-radius:50%; background:#e33b32; }
+    .variant { display:none; }
+    .variant.active { display:block; }
+    .b .onboarding { text-align:center; }
+    .b .mark { margin:0 auto 15px; border-radius:50%; }
+    .b label { justify-content:center; }
+    .c.surface { width:320px; }
+    .c .onboarding { padding:15px; }
+    .c .intro { display:flex; gap:12px; align-items:flex-start; }
+    .c .mark { flex:0 0 auto; width:39px; height:39px; margin:0; font-size:21px; }
+    .c h1 { font-size:16px; }
+    .c p { margin:5px 0 12px; font-size:12px; }
+    .c .primary { width:auto; margin:0 0 0 auto; padding-inline:18px; }
+    .note { position:fixed; z-index:6; left:24px; bottom:24px; color:#fff; text-shadow:0 1px 4px #0008; font:11px/1.5 ui-monospace,SFMono-Regular,monospace; }
+    .controls { position:fixed; z-index:9; left:50%; bottom:24px; transform:translateX(-50%); display:flex; align-items:center; gap:4px; padding:6px; border:1px solid #ffffff35; border-radius:12px; color:white; background:#151519ef; box-shadow:0 12px 28px #0007; }
+    button.control { border:0; border-radius:7px; padding:7px 9px; color:#ddd; background:transparent; font:600 11px inherit; cursor:pointer; }
+    button.control:hover,button.control.on { color:white; background:#087bf0; }
+    .variant-label { min-width:148px; text-align:center; font-size:11px; }
+    .divider { width:1px; height:21px; margin:0 3px; background:#ffffff26; }
+    .state-readout { position:fixed; z-index:6; right:18px; bottom:18px; padding:8px 10px; border-radius:8px; color:#ddd; background:#111c; font:10px ui-monospace,SFMono-Regular,monospace; }
+    @media (prefers-color-scheme:dark) { body{color:#eee}.surface,.submenu{background:#29292bf2;border-color:#fff2}.sep{background:#fff2}p,.summary{color:#b9b9be}.row.disabled{color:#929298}.row.section-title{color:#aaa} }
+  </style>
+</head>
+<body>
+  <div class="menubar"><span>●</span><span>Finder</span><span>File</span><span>Edit</span><span>View</span><span class="spacer"></span><span class="app-icon">◈</span><span>⌁</span><span>Thu Sep 3&nbsp; 9:41 AM</span></div>
+
+  <section class="surface variant a" data-variant="A"><div class="onboarding"><div class="mark">⇩</div><h1>Drag an HEIC image to convert</h1><p>Drag an HEIC image from any app. Drop it into Dropshot to copy a JPEG, ready to paste. Hold ⌥ while dragging to copy a PNG instead.</p><label><input type="checkbox"> Launch Dropshot at Login</label><button class="primary">Got It</button></div></section>
+  <section class="surface variant b" data-variant="B"><div class="onboarding"><div class="mark">◈</div><h1>Drag an HEIC image to convert</h1><p>Drag an HEIC image from any app. Drop it into Dropshot to copy a JPEG, ready to paste. Hold ⌥ while dragging to copy a PNG instead.</p><label><input type="checkbox"> Launch Dropshot at Login</label><button class="primary">Got It</button></div></section>
+  <section class="surface variant c" data-variant="C"><div class="onboarding"><div class="intro"><div class="mark">⇩</div><div><h1>Drag an HEIC image to convert</h1><p>Drag an HEIC image from any app. Drop it into Dropshot to copy a JPEG, ready to paste. Hold ⌥ while dragging to copy a PNG instead.</p></div></div><label><input type="checkbox"> Launch Dropshot at Login</label><button class="primary">Got It</button></div></section>
+
+  <section class="surface menu" id="menu" hidden>
+    <div class="row disabled" id="status">Ready for an HEIC drag</div><div class="sep"></div>
+    <div class="row interactive">How to Use Dropshot…</div>
+    <div class="row interactive selected error-row" hidden><span class="error-dot"></span>Last Error <span class="end">›</span></div><div class="sep"></div>
+    <div class="row interactive"><span class="check">✓</span>Play Sounds</div>
+    <div class="row interactive"><span class="check"></span>Launch Dropshot at Login</div><div class="sep"></div>
+    <div class="row interactive">About Dropshot</div><div class="row interactive">Quit Dropshot</div>
+    <div class="submenu" hidden><div class="summary">The image couldn’t be converted.<br>Original unchanged.</div><div class="sep"></div><div class="row interactive">Copy Details</div></div>
+  </section>
+
+  <div class="note">THROWAWAY PROTOTYPE<br>Use ←/→ for variants.<br>Switch states to inspect the complete experience.</div>
+  <div class="state-readout"></div>
+  <nav class="controls" aria-label="Prototype controls"><button class="control" id="prev">←</button><span class="variant-label"></span><button class="control" id="next">→</button><span class="divider"></span><button class="control" data-state="onboarding">First Launch</button><button class="control" data-state="ready">Ready Menu</button><button class="control" data-state="error">Error Menu</button></nav>
+  <script>
+    const variants={A:'Anchored Guide',B:'Centered Welcome',C:'Compact Coach'};
+    const keys=Object.keys(variants),params=new URLSearchParams(location.search);
+    let variant=keys.includes(params.get('variant'))?params.get('variant'):'B';
+    let state=params.get('state')||'onboarding';
+    function render(){
+      document.querySelectorAll('.variant').forEach(el=>el.classList.toggle('active',state==='onboarding'&&el.dataset.variant===variant));
+      const menu=document.querySelector('#menu'),hasError=state==='error';
+      menu.hidden=state==='onboarding';
+      document.querySelector('.error-row').hidden=!hasError;
+      document.querySelector('.submenu').hidden=!hasError;
+      document.querySelector('#status').textContent=hasError?'Ready for an HEIC drag':'Ready for an HEIC drag';
+      document.querySelectorAll('[data-state]').forEach(el=>el.classList.toggle('on',el.dataset.state===state));
+      document.querySelector('.variant-label').textContent=`${variant} · ${variants[variant]}`;
+      document.querySelector('.state-readout').textContent=JSON.stringify({variant,state,sounds:true,launchAtLogin:false,lastError:hasError});
+      params.set('variant',variant);params.set('state',state);history.replaceState(null,'',`?${params}`);
+    }
+    function cycle(d){variant=keys[(keys.indexOf(variant)+d+keys.length)%keys.length];render()}
+    document.querySelector('#prev').onclick=()=>cycle(-1);document.querySelector('#next').onclick=()=>cycle(1);
+    document.querySelectorAll('[data-state]').forEach(el=>el.onclick=()=>{state=el.dataset.state;render()});
+    document.querySelectorAll('.primary').forEach(el=>el.onclick=()=>{state='ready';render()});
+    addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','BUTTON'].includes(e.target.tagName)||e.target.isContentEditable)return;if(e.key==='ArrowLeft')cycle(-1);if(e.key==='ArrowRight')cycle(1)});
+    render();
+  </script>
+</body>
+</html>

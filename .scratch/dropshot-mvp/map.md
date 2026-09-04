@@ -6,9 +6,11 @@ An implementation-ready product and technical specification for a locally runnab
 
 ## Notes
 
-Dropshot is a native macOS menu-bar utility. Consult the `grilling` and `domain-modeling` skills whenever resolving product decisions, and keep `CONTEXT.md` synchronized with settled domain language.
+Dropshot is a native macOS menu-bar utility. Consult the `grilling` and `domain-modeling` skills whenever resolving product decisions, and keep `CONTEXT.md` synchronized with settled domain language. Consult `codebase-design` and `tdd` when resolving architecture, test seams, and the validation contract.
 
 Standing product constraints: an Eligible Drag may originate in any app; the Drop Zone appears automatically beneath the menu-bar item; Default Conversion produces JPEG; holding Option requests PNG; Clipboard Handoff creates no user-visible permanent file; launch at login is opt-in.
+
+The implementation specification must require vertical red-green TDD at pre-agreed public seams: one failing behavior test, the minimum implementation to pass it, then the next slice. Automated tests must verify deterministic domain behavior and owned adapters wherever practical. Tests must observe public interfaces rather than private implementation details. Behaviors that require real macOS drag sessions, Spaces, full-screen windows, or third-party paste receivers must have explicit repeatable manual compatibility checks when stable automation is unavailable.
 
 This map plans the MVP; implementation is not part of the effort.
 
@@ -21,7 +23,7 @@ This map plans the MVP; implementation is not part of the effort.
 ## Not yet specified
 
 - Packaging, signing, sandbox, entitlement, and deployment-target details that depend on the viable system interaction architecture.
-- Exact conversion and clipboard acceptance criteria that depend on the selected framework behavior and compatibility findings.
+- Exact automated-versus-manual conversion and clipboard acceptance criteria that depend on the selected interfaces, framework behavior, and compatibility findings.
 - Any additional edge cases exposed by the interaction and clipboard prototypes.
 
 ## Out of scope

@@ -47,7 +47,7 @@ xcodebuild test \
   -destination 'platform=macOS'
 ```
 
-The test targets are currently placeholders and do not yet cover application behavior.
+The unit-test target includes a public-behavior tracer for the Accepted Drop through Default Conversion and Clipboard Handoff workflow. The UI-test target currently contains launch smoke tests.
 
 ## Project structure
 

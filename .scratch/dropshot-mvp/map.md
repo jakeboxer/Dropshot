@@ -27,11 +27,11 @@ This map plans the MVP; implementation is not part of the effort.
 
 - [Define menu onboarding, feedback, and error experience](issues/05-define-menu-onboarding-feedback-and-error-experience.md): use centered one-time guidance, a compact status-and-settings menu, opt-in login launch, default-on sounds independent of accessibility announcements, and a privacy-sanitized session-scoped Last Error cleared by the next successful Clipboard Handoff.
 
+- [Choose the application architecture and capability boundary](issues/06-choose-application-architecture-and-capability-boundary.md): use a single-process sandboxed AppKit shell around a pure event/effect DropWorkflow, narrowly scoped platform adapters, one main-actor state owner, and explicit automated seams targeting macOS 15 and 26 on Apple silicon.
+
 ## Not yet specified
 
-- Packaging, signing, sandbox, entitlement, and deployment-target details that depend on the viable system interaction architecture.
-- Exact automated-versus-manual conversion and clipboard acceptance criteria that depend on the selected interfaces, framework behavior, and compatibility findings.
-- Any additional edge cases exposed by the interaction and clipboard prototypes.
+- None currently; the remaining known decisions are represented by open child tickets.
 
 ## Out of scope
 

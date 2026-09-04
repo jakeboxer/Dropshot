@@ -8,6 +8,14 @@ Dropshot is a macOS menu-bar utility that turns a dragged HEIC image into clipbo
 A drag session containing exactly one HEIC file and no other items, originating from any macOS application.
 _Avoid_: Messages drag, supported drag
 
+**Drag Observation**:
+A fallible snapshot of the items and types advertised by an in-progress drag before or while it interacts with the Drop Zone. A Drag Observation may establish that a drag is eligible or ineligible, or may remain indeterminate; only destination-time evidence can authorize conversion.
+_Avoid_: detected drag, guaranteed drag
+
+**Accepted Drop**:
+An Eligible Drag that has been authoritatively classified at the Drop Zone and released there for conversion. When Accepted Drops overlap, only the newest may complete a Clipboard Handoff or set terminal feedback.
+_Avoid_: uploaded file, queued file
+
 **Drop Zone**:
 The transient target shown beneath the menu-bar item while an Eligible Drag is active.
 _Avoid_: window, shelf, tray

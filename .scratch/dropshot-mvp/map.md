@@ -23,6 +23,8 @@ This map plans the MVP; implementation is not part of the effort.
 - [Choose the Drop Zone visual and motion language](issues/03-choose-drop-zone-visual-and-motion-language.md): use a compact Format Orb with explicit release-to-copy format text, passive Option guidance, restrained format feedback, silent cancellation, and brief in-zone success or failure confirmation.
 - [Run the drag and clipboard compatibility spike](issues/08-run-drag-and-clipboard-compatibility-spike.md): on macOS 26.6.2, Messages exposes a single HEIC file URL before destination entry, and one-item JPEG/PNG-plus-TIFF handoffs pass across the required available receiver matrix; retain fallible adapters and cross-version release checks.
 
+- [Define conversion fidelity and privacy policy](issues/04-define-conversion-fidelity-and-privacy-policy.md): normalize the primary still image to metadata-free 8-bit SDR sRGB at full resolution, with quality-0.90 white-composited JPEG or alpha-preserving PNG, and retain neither temporary inputs nor converted files.
+
 ## Not yet specified
 
 - Packaging, signing, sandbox, entitlement, and deployment-target details that depend on the viable system interaction architecture.
@@ -37,3 +39,4 @@ This map plans the MVP; implementation is not part of the effort.
 - Conversion history, file management, and permanent converted files.
 - App Store submission, analytics, accounts, subscriptions, and monetization.
 - Intel Mac support.
+- A pre-drop warning when Default Conversion will replace transparency with white, because alpha cannot be detected reliably before release for every Eligible Drag.

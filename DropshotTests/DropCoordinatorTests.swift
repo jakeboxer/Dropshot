@@ -5,11 +5,57 @@ import Testing
 @MainActor
 struct DropCoordinatorTests {
     @Test
+    func destinationInteractionEndsWithoutConversionOrClipboardHandoff() async {
+        let converter = ConversionTestAdapter(result: .failure(.failed))
+        let clipboard = ClipboardTestAdapter()
+        let presenter = DropZonePresentationTestAdapter()
+        let coordinator = DropCoordinator(
+            converter: converter,
+            clipboard: clipboard,
+            presentation: presenter
+        )
+        coordinator.observeDrag(DragDescriptor(items: [
+            .fileURL(URL(fileURLWithPath: "/image.heic"), contentType: .heic)
+        ]))
+        #expect(presenter.isPresented)
+
+        coordinator.endDestinationInteraction()
+
+        #expect(!presenter.isPresented)
+        #expect(await converter.requests.isEmpty)
+        #expect(clipboard.handoffs.isEmpty)
+    }
+
+    @Test
+    func eligibleDragObservationPresentsAndIneligibleObservationDismissesTheDropZone() {
+        let presenter = DropZonePresentationTestAdapter()
+        let coordinator = DropCoordinator(
+            converter: ConversionTestAdapter(result: .failure(.failed)),
+            clipboard: ClipboardTestAdapter(),
+            presentation: presenter
+        )
+        let eligible = DragDescriptor(items: [
+            .fileURL(URL(fileURLWithPath: "/image.heic"), contentType: .heic)
+        ])
+
+        coordinator.observeDrag(eligible)
+
+        #expect(presenter.isPresented)
+        coordinator.observeDrag(DragDescriptor(items: [.other]))
+
+        #expect(!presenter.isPresented)
+    }
+
+    @Test
     func optionHeldAcceptedDropHandsOffRealPNGAndTIFF() async throws {
         let url = try #require(Bundle(for: ClipboardTestAdapter.self)
             .url(forResource: "transparency", withExtension: "heic"))
         let clipboard = ClipboardTestAdapter()
-        let coordinator = DropCoordinator(converter: ImageConversion(), clipboard: clipboard)
+        let coordinator = DropCoordinator(
+            converter: ImageConversion(),
+            clipboard: clipboard,
+            presentation: DropZonePresentationTestAdapter()
+        )
         coordinator.modifiersChanged(optionHeld: true)
         #expect(coordinator.selectedFormat == .png)
         coordinator.modifiersChanged(optionHeld: false)
@@ -35,7 +81,11 @@ struct DropCoordinatorTests {
             result: .success(ConvertedImage(requestedFormatData: jpegData, tiffData: tiffData))
         )
         let clipboard = ClipboardTestAdapter()
-        let coordinator = DropCoordinator(converter: converter, clipboard: clipboard)
+        let coordinator = DropCoordinator(
+            converter: converter,
+            clipboard: clipboard,
+            presentation: DropZonePresentationTestAdapter()
+        )
 
         try await coordinator.accept(try #require(DragClassifier.acceptDrop(
             atDestination: DragDescriptor(items: [.fileURL(input.fileURL, contentType: .heic)]), input: input
@@ -55,6 +105,15 @@ struct DropCoordinatorTests {
                 )
             )
         ])
+    }
+}
+
+@MainActor
+private final class DropZonePresentationTestAdapter: DropZonePresenting {
+    private(set) var isPresented = false
+
+    func setDropZonePresented(_ isPresented: Bool) {
+        self.isPresented = isPresented
     }
 }
 

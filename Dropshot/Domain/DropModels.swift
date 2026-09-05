@@ -5,6 +5,12 @@ nonisolated struct DroppedInput: Equatable, Sendable {
     let fileURL: URL
 }
 
+nonisolated struct DestinationDropEvidence: Equatable, Sendable {
+    let descriptor: DragDescriptor
+    let input: DroppedInput?
+    let optionHeld: Bool
+}
+
 nonisolated enum OutputFormat: Equatable, Sendable {
     case jpeg
     case png

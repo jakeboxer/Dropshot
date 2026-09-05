@@ -3,7 +3,7 @@
 Dropshot is a lightweight macOS menu-bar utility for turning a dragged HEIC image into clipboard-ready image content.
 
 > [!NOTE]
-> Dropshot is currently in early development. The menu-bar app shell is implemented; drag-and-drop conversion and clipboard handoff are planned but not yet available.
+> Dropshot is currently in early development. The menu-bar app can observe and accept a single HEIC file-URL drag through its transient Drop Zone; complete cancellation, file-promise, feedback, and release validation remain in progress.
 
 ## Planned workflow
 
@@ -47,7 +47,7 @@ xcodebuild test \
   -destination 'platform=macOS'
 ```
 
-The unit-test target covers descriptor-only Drag Observation classification, destination-only Accepted Drop creation, and the Accepted Drop through Default Conversion or PNG Format Override and Clipboard Handoff workflow, live modifier selection, and real HEIC conversion to owned JPEG/PNG bytes plus TIFF fallback. Pixel checks cover orientation, transparency, primary-image selection, and source preservation. The UI-test target currently contains launch smoke tests. The converter and live format state are available at the adapter seam; the menu-bar drag-and-drop UI is still planned.
+The unit-test target covers AppKit drag-pasteboard snapshots, descriptor-only Drag Observation classification, nonactivating Drop Zone presentation, destination-only Accepted Drop creation and rejection, and the Accepted Drop through Default Conversion or PNG Format Override and Clipboard Handoff workflow. It also covers live modifier selection and real HEIC conversion to owned JPEG/PNG bytes plus TIFF fallback. Pixel checks cover orientation, transparency, primary-image selection, and source preservation. The UI-test target currently contains launch smoke tests.
 
 ## Project structure
 

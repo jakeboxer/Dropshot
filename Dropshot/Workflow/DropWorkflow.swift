@@ -1,6 +1,7 @@
 struct DropWorkflow {
     enum Event: Sendable {
         case dragObserved(DragDescriptor)
+        case destinationInteractionEnded
         case modifiersChanged(optionHeld: Bool)
         case acceptedDrop(AcceptedDrop)
         case conversionCompleted(
@@ -25,6 +26,10 @@ struct DropWorkflow {
         switch event {
         case .dragObserved(let descriptor):
             isDropZoneRequested = DragClassifier.classify(descriptor) == .eligible
+            return []
+
+        case .destinationInteractionEnded:
+            isDropZoneRequested = false
             return []
 
         case .modifiersChanged(let optionHeld):

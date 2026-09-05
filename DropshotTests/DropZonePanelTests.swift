@@ -1,0 +1,50 @@
+import AppKit
+import Testing
+@testable import Dropshot
+
+@MainActor
+struct DropZonePanelTests {
+    @Test
+    func dropZoneRejectsIneligibleDestinationPayloadBeforeAcceptance() {
+        var acceptedDrops: [AcceptedDrop] = []
+        var rejectionCount = 0
+        let presentation = DropZonePanelController(
+            onAcceptedDrop: { acceptedDrops.append($0) },
+            onRejectedDrop: { rejectionCount += 1 }
+        )
+
+        let wasAccepted = presentation.acceptDestinationDrop(DestinationDropEvidence(
+            descriptor: DragDescriptor(items: [.other]),
+            input: nil,
+            optionHeld: false
+        ))
+
+        #expect(!wasAccepted)
+        #expect(acceptedDrops.isEmpty)
+        #expect(rejectionCount == 1)
+    }
+
+    @Test
+    func dropZoneIsANonactivatingRegisteredPanelWithDefaultGuidance() {
+        let presentation = DropZonePanelController()
+
+        #expect(presentation.panel.styleMask.contains(.nonactivatingPanel))
+        #expect(!presentation.panel.canBecomeKey)
+        #expect(!presentation.panel.canBecomeMain)
+        #expect(presentation.panel.contentRect(forFrameRect: presentation.panel.frame).size == CGSize(
+            width: 202,
+            height: 170
+        ))
+        #expect(presentation.guidance == DropZoneGuidance(
+            title: "Drop HEIC here",
+            subtitle: "Release to copy as JPEG",
+            footer: "Hold ⌥ for PNG"
+        ))
+
+        let registeredTypes = Set(presentation.registeredDraggedTypes)
+        #expect(registeredTypes.contains(.fileURL))
+        for type in NSFilePromiseReceiver.readableDraggedTypes {
+            #expect(registeredTypes.contains(NSPasteboard.PasteboardType(type)))
+        }
+    }
+}

@@ -5,17 +5,6 @@ nonisolated struct DroppedInput: Equatable, Sendable {
     let fileURL: URL
 }
 
-nonisolated struct AcceptedDrop: Equatable, Sendable {
-    let input: DroppedInput
-    // Destination-time evidence, independent of earlier modifier observations.
-    let optionHeld: Bool
-
-    init(input: DroppedInput, optionHeld: Bool = false) {
-        self.input = input
-        self.optionHeld = optionHeld
-    }
-}
-
 nonisolated enum OutputFormat: Equatable, Sendable {
     case jpeg
     case png

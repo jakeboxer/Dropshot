@@ -1,5 +1,6 @@
 struct DropWorkflow {
     enum Event: Sendable {
+        case dragObserved(DragDescriptor)
         case modifiersChanged(optionHeld: Bool)
         case acceptedDrop(AcceptedDrop)
         case conversionCompleted(
@@ -15,17 +16,23 @@ struct DropWorkflow {
         case performClipboardHandoff(ClipboardHandoff)
     }
 
+    private(set) var isDropZoneRequested = false
     private(set) var activeDropID: DropID?
     private(set) var selectedFormat: OutputFormat = .jpeg
     private var nextDropID = DropID(1)
 
     mutating func handle(_ event: Event) -> [Effect] {
         switch event {
+        case .dragObserved(let descriptor):
+            isDropZoneRequested = DragClassifier.classify(descriptor) == .eligible
+            return []
+
         case .modifiersChanged(let optionHeld):
             selectedFormat = FormatSelection.resolve(optionHeld: optionHeld)
             return []
 
         case .acceptedDrop(let acceptedDrop):
+            isDropZoneRequested = false
             selectedFormat = FormatSelection.resolve(optionHeld: acceptedDrop.optionHeld)
             let request = ConversionRequest(
                 dropID: nextDropID,

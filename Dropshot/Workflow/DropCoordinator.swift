@@ -18,6 +18,12 @@ final class DropCoordinator {
         self.clipboard = clipboard
     }
 
+    var isDropZoneRequested: Bool { workflow.isDropZoneRequested }
+
+    func observeDrag(_ descriptor: DragDescriptor) {
+        _ = workflow.handle(.dragObserved(descriptor))
+    }
+
     var selectedFormat: OutputFormat { workflow.selectedFormat }
 
     func modifiersChanged(optionHeld: Bool) {

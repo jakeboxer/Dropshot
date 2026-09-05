@@ -14,7 +14,10 @@ struct DropCoordinatorTests {
         #expect(coordinator.selectedFormat == .png)
         coordinator.modifiersChanged(optionHeld: false)
         #expect(coordinator.selectedFormat == .jpeg)
-        try await coordinator.accept(AcceptedDrop(input: DroppedInput(fileURL: url), optionHeld: true))
+        try await coordinator.accept(try #require(DragClassifier.acceptDrop(
+            atDestination: DragDescriptor(items: [.fileURL(url, contentType: .heic)]),
+            input: DroppedInput(fileURL: url), optionHeld: true
+        )))
         let handoff = try #require(clipboard.handoffs.first)
         #expect(clipboard.handoffs.count == 1)
         #expect(handoff.format == .png)
@@ -34,7 +37,9 @@ struct DropCoordinatorTests {
         let clipboard = ClipboardTestAdapter()
         let coordinator = DropCoordinator(converter: converter, clipboard: clipboard)
 
-        try await coordinator.accept(AcceptedDrop(input: input))
+        try await coordinator.accept(try #require(DragClassifier.acceptDrop(
+            atDestination: DragDescriptor(items: [.fileURL(input.fileURL, contentType: .heic)]), input: input
+        )))
 
         let conversionRequests = await converter.requests
         #expect(conversionRequests == [

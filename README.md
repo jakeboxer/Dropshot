@@ -47,7 +47,7 @@ xcodebuild test \
   -destination 'platform=macOS'
 ```
 
-The unit-test target includes a public-behavior tracer for the Accepted Drop through Default Conversion and Clipboard Handoff workflow. The UI-test target currently contains launch smoke tests.
+The unit-test target covers the Accepted Drop through Default Conversion and Clipboard Handoff workflow, plus real HEIC conversion to owned JPEG/TIFF bytes, orientation, transparency, primary-image selection, and source preservation. The UI-test target currently contains launch smoke tests. The converter is available at the adapter seam; the menu-bar drag-and-drop UI is still planned.
 
 ## Project structure
 

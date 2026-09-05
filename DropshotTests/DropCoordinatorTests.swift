@@ -6,7 +6,7 @@ import Testing
 struct DropCoordinatorTests {
     @Test
     func acceptedDropPerformsDefaultConversionAndClipboardHandoff() async throws {
-        let input = DroppedInput()
+        let input = DroppedInput(fileURL: URL(fileURLWithPath: "/unused-tracer.heic"))
         let jpegData = Data([0xFF, 0xD8, 0xFF])
         let tiffData = Data([0x49, 0x49, 0x2A, 0x00])
         let converter = ConversionTestAdapter(

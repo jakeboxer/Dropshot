@@ -1,17 +1,20 @@
 import Foundation
 
-struct DroppedInput: Equatable, Sendable {}
+nonisolated struct DroppedInput: Equatable, Sendable {
+    // The caller keeps the source readable for the duration of conversion.
+    let fileURL: URL
+}
 
-struct AcceptedDrop: Equatable, Sendable {
+nonisolated struct AcceptedDrop: Equatable, Sendable {
     let input: DroppedInput
 }
 
-enum OutputFormat: Equatable, Sendable {
+nonisolated enum OutputFormat: Equatable, Sendable {
     case jpeg
     case png
 }
 
-struct DropID: Equatable, Sendable {
+nonisolated struct DropID: Equatable, Sendable {
     let value: UInt64
 
     init(_ value: UInt64) {
@@ -19,22 +22,22 @@ struct DropID: Equatable, Sendable {
     }
 }
 
-struct ConversionRequest: Equatable, Sendable {
+nonisolated struct ConversionRequest: Equatable, Sendable {
     let dropID: DropID
     let input: DroppedInput
     let format: OutputFormat
 }
 
-struct ConvertedImage: Equatable, Sendable {
+nonisolated struct ConvertedImage: Equatable, Sendable {
     let requestedFormatData: Data
     let tiffData: Data
 }
 
-enum ImageConversionFailure: Error, Equatable, Sendable {
+nonisolated enum ImageConversionFailure: Error, Equatable, Sendable {
     case failed
 }
 
-struct ClipboardHandoff: Equatable, Sendable {
+nonisolated struct ClipboardHandoff: Equatable, Sendable {
     let dropID: DropID
     let format: OutputFormat
     let convertedImage: ConvertedImage

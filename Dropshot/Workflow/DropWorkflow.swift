@@ -1,5 +1,6 @@
 struct DropWorkflow {
     enum Event: Sendable {
+        case modifiersChanged(optionHeld: Bool)
         case acceptedDrop(AcceptedDrop)
         case conversionCompleted(
             request: ConversionRequest,
@@ -9,21 +10,27 @@ struct DropWorkflow {
         case clipboardHandoffFailed(dropID: DropID)
     }
 
-    enum Effect: Equatable, Sendable {
+    nonisolated enum Effect: Equatable, Sendable {
         case convert(ConversionRequest)
         case performClipboardHandoff(ClipboardHandoff)
     }
 
     private(set) var activeDropID: DropID?
+    private(set) var selectedFormat: OutputFormat = .jpeg
     private var nextDropID = DropID(1)
 
     mutating func handle(_ event: Event) -> [Effect] {
         switch event {
+        case .modifiersChanged(let optionHeld):
+            selectedFormat = FormatSelection.resolve(optionHeld: optionHeld)
+            return []
+
         case .acceptedDrop(let acceptedDrop):
+            selectedFormat = FormatSelection.resolve(optionHeld: acceptedDrop.optionHeld)
             let request = ConversionRequest(
                 dropID: nextDropID,
                 input: acceptedDrop.input,
-                format: .jpeg
+                format: selectedFormat
             )
             activeDropID = nextDropID
             nextDropID = DropID(nextDropID.value + 1)

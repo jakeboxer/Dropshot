@@ -18,6 +18,12 @@ final class DropCoordinator {
         self.clipboard = clipboard
     }
 
+    var selectedFormat: OutputFormat { workflow.selectedFormat }
+
+    func modifiersChanged(optionHeld: Bool) {
+        _ = workflow.handle(.modifiersChanged(optionHeld: optionHeld))
+    }
+
     func accept(_ acceptedDrop: AcceptedDrop) async throws {
         try await execute(workflow.handle(.acceptedDrop(acceptedDrop)))
     }

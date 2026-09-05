@@ -47,7 +47,7 @@ xcodebuild test \
   -destination 'platform=macOS'
 ```
 
-The unit-test target covers the Accepted Drop through Default Conversion and Clipboard Handoff workflow, plus real HEIC conversion to owned JPEG/TIFF bytes, orientation, transparency, primary-image selection, and source preservation. The UI-test target currently contains launch smoke tests. The converter is available at the adapter seam; the menu-bar drag-and-drop UI is still planned.
+The unit-test target covers the Accepted Drop through Default Conversion or PNG Format Override and Clipboard Handoff workflow, live modifier selection, and real HEIC conversion to owned JPEG/PNG bytes plus TIFF fallback. Pixel checks cover orientation, transparency, primary-image selection, and source preservation. The UI-test target currently contains launch smoke tests. The converter and live format state are available at the adapter seam; the menu-bar drag-and-drop UI is still planned.
 
 ## Project structure
 

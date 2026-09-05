@@ -5,6 +5,25 @@ import Testing
 @MainActor
 struct DropCoordinatorTests {
     @Test
+    func optionHeldAcceptedDropHandsOffRealPNGAndTIFF() async throws {
+        let url = try #require(Bundle(for: ClipboardTestAdapter.self)
+            .url(forResource: "transparency", withExtension: "heic"))
+        let clipboard = ClipboardTestAdapter()
+        let coordinator = DropCoordinator(converter: ImageConversion(), clipboard: clipboard)
+        coordinator.modifiersChanged(optionHeld: true)
+        #expect(coordinator.selectedFormat == .png)
+        coordinator.modifiersChanged(optionHeld: false)
+        #expect(coordinator.selectedFormat == .jpeg)
+        try await coordinator.accept(AcceptedDrop(input: DroppedInput(fileURL: url), optionHeld: true))
+        let handoff = try #require(clipboard.handoffs.first)
+        #expect(clipboard.handoffs.count == 1)
+        #expect(handoff.format == .png)
+        #expect(handoff.convertedImage.requestedFormatData.starts(with: [137, 80, 78, 71, 13, 10, 26, 10]))
+        #expect(handoff.convertedImage.tiffData.starts(with: [73, 73, 42, 0])
+            || handoff.convertedImage.tiffData.starts(with: [77, 77, 0, 42]))
+    }
+
+    @Test
     func acceptedDropPerformsDefaultConversionAndClipboardHandoff() async throws {
         let input = DroppedInput(fileURL: URL(fileURLWithPath: "/unused-tracer.heic"))
         let jpegData = Data([0xFF, 0xD8, 0xFF])

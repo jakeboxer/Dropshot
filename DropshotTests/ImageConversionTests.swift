@@ -9,7 +9,23 @@ private final class FixtureBundle {}
 
 struct ImageConversionTests {
     @Test
-    func defaultConversionPreservesOrientedVisibleImageAsOwnedRepresentations() async throws {
+    func formatOverridePreservesAlphaInPNGAndTIFFFallback() async throws {
+        let output = try await convertFixture("transparency", format: .png)
+        for (data, type) in [(output.requestedFormatData, UTType.png), (output.tiffData, UTType.tiff)] {
+            let source = try #require(CGImageSourceCreateWithData(data as CFData, nil))
+            #expect(CGImageSourceGetType(source) == type.identifier as CFString)
+            let image = try #require(CGImageSourceCreateImageAtIndex(source, 0, nil))
+            #expect(image.width == 96)
+            #expect(image.height == 64)
+            #expect(image.bitsPerComponent == 8)
+            #expect(image.colorSpace?.name == CGColorSpace.sRGB)
+            // Premultiplied RGBA: clear, half-alpha red, opaque blue, opaque yellow.
+            try expectCorners(image, colors: [[0, 0, 0, 0], [128, 0, 0, 128], [0, 0, 255, 255], [255, 255, 0, 255]])
+        }
+    }
+
+    @Test(arguments: [OutputFormat.jpeg, .png])
+    func conversionPreservesOrientedVisibleImageAsOwnedRepresentations(format: OutputFormat) async throws {
         let fixture = try #require(Bundle(for: FixtureBundle.self)
             .url(forResource: "oriented-metadata", withExtension: "heic"))
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -20,16 +36,16 @@ struct ImageConversionTests {
         try original.write(to: input)
 
         let result = await ImageConversion().convert(ConversionRequest(
-            dropID: DropID(1), input: DroppedInput(fileURL: input), format: .jpeg))
+            dropID: DropID(1), input: DroppedInput(fileURL: input), format: format))
         let output = try result.get()
         let repeated = try await ImageConversion().convert(ConversionRequest(
-            dropID: DropID(2), input: DroppedInput(fileURL: input), format: .jpeg)).get()
+            dropID: DropID(2), input: DroppedInput(fileURL: input), format: format)).get()
         #expect(repeated == output)
 
         #expect(try Data(contentsOf: input) == original)
         #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path) == ["input.heic"])
         try FileManager.default.removeItem(at: input)
-        for (data, type) in [(output.requestedFormatData, UTType.jpeg), (output.tiffData, UTType.tiff)] {
+        for (data, type) in [(output.requestedFormatData, format == .png ? UTType.png : .jpeg), (output.tiffData, UTType.tiff)] {
             let source = try #require(CGImageSourceCreateWithData(data as CFData, nil))
             #expect(CGImageSourceGetType(source) == type.identifier as CFString)
             #expect(CGImageSourceGetCount(source) == 1)
@@ -52,9 +68,9 @@ struct ImageConversionTests {
         }
     }
 
-    @Test(arguments: 1...8)
-    func appliesEveryEXIFOrientationToFullResolutionPixels(_ orientation: Int) async throws {
-        let output = try await convertFixture("orientation-\(orientation)")
+    @Test(arguments: 1...8, [OutputFormat.jpeg, .png])
+    func appliesEveryEXIFOrientationToFullResolutionPixels(_ orientation: Int, format: OutputFormat) async throws {
+        let output = try await convertFixture("orientation-\(orientation)", format: format)
         let expected = [
             [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0]],
             [[0, 255, 0], [255, 0, 0], [255, 255, 0], [0, 0, 255]],
@@ -85,20 +101,22 @@ struct ImageConversionTests {
         }
     }
 
-    @Test
-    func convertsOnlyPrimaryStillImage() async throws {
+    @Test(arguments: [OutputFormat.jpeg, .png])
+    func convertsOnlyPrimaryStillImage(format: OutputFormat) async throws {
         let url = try #require(Bundle(for: FixtureBundle.self).url(forResource: "primary-second", withExtension: "heic"))
         let source = try #require(CGImageSourceCreateWithURL(url as CFURL, nil))
         #expect(CGImageSourceGetCount(source) == 2)
         #expect(CGImageSourceGetPrimaryImageIndex(source) == 1)
-        let output = try await convertFixture("primary-second")
+        let output = try await convertFixture("primary-second", format: format)
         for data in [output.requestedFormatData, output.tiffData] {
             let converted = try #require(CGImageSourceCreateWithData(data as CFData, nil))
             #expect(CGImageSourceGetCount(converted) == 1)
             let image = try #require(CGImageSourceCreateImageAtIndex(converted, 0, nil))
             #expect(image.width == 96)
             #expect(image.height == 64)
-            try expectCorners(image, colors: [[255, 255, 255], [255, 127, 127], [0, 0, 255], [255, 255, 0]])
+            try expectCorners(image, colors: format == .png
+                ? [[0, 0, 0, 0], [128, 0, 0, 128], [0, 0, 255, 255], [255, 255, 0, 255]]
+                : [[255, 255, 255], [255, 127, 127], [0, 0, 255], [255, 255, 0]])
         }
     }
 
@@ -127,14 +145,14 @@ private func expectCorners(_ image: CGImage, colors: [[Int]]) throws {
                             (image.width * 3 / 4, image.height / 4),
                             (image.width / 4, image.height * 3 / 4),
                             (image.width * 3 / 4, image.height * 3 / 4)].enumerated() {
-        for channel in 0..<3 {
+        for channel in colors[index].indices {
             #expect(abs(Int(bytes[(point.1 * image.width + point.0) * 4 + channel]) - colors[index][channel]) <= 12)
         }
     }
 }
 
-private func convertFixture(_ name: String) async throws -> ConvertedImage {
+private func convertFixture(_ name: String, format: OutputFormat = .jpeg) async throws -> ConvertedImage {
     let url = try #require(Bundle(for: FixtureBundle.self).url(forResource: name, withExtension: "heic"))
     return try await ImageConversion().convert(ConversionRequest(
-        dropID: DropID(1), input: DroppedInput(fileURL: url), format: .jpeg)).get()
+        dropID: DropID(1), input: DroppedInput(fileURL: url), format: format)).get()
 }

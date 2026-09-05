@@ -10,13 +10,17 @@ nonisolated struct ImageConversion: ImageConverting {
     func convert(_ request: ConversionRequest) async -> Result<ConvertedImage, ImageConversionFailure> {
         autoreleasepool {
             do {
-                guard request.format == .jpeg, request.input.fileURL.isFileURL else {
+                guard request.input.fileURL.isFileURL else {
                     throw ImageConversionFailure.failed
                 }
                 // Drain decoder intermediates before preparing the two encoded buffers.
-                let raster = try autoreleasepool { try visibleImage(at: request.input.fileURL) }
+                let raster = try autoreleasepool {
+                    try visibleImage(at: request.input.fileURL, format: request.format)
+                }
                 return .success(ConvertedImage(
-                    requestedFormatData: try autoreleasepool { try encode(raster, type: .jpeg) },
+                    requestedFormatData: try autoreleasepool {
+                        try encode(raster, type: request.format == .png ? .png : .jpeg)
+                    },
                     tiffData: try autoreleasepool { try encode(raster, type: .tiff) }
                 ))
             } catch {
@@ -25,7 +29,7 @@ nonisolated struct ImageConversion: ImageConverting {
         }
     }
 
-    private func visibleImage(at url: URL) throws -> CGImage {
+    private func visibleImage(at url: URL, format: OutputFormat) throws -> CGImage {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               CGImageSourceGetType(source) == UTType.heic.identifier as CFString else {
             throw ImageConversionFailure.failed
@@ -47,11 +51,13 @@ nonisolated struct ImageConversion: ImageConverting {
         let height = swapsDimensions ? image.width : image.height
         guard let context = CGContext(data: nil, width: width, height: height,
             bitsPerComponent: 8, bytesPerRow: 0, space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else {
+            bitmapInfo: (format == .png ? CGImageAlphaInfo.premultipliedLast : .noneSkipLast).rawValue) else {
             throw ImageConversionFailure.failed
         }
-        context.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
-        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        if format == .jpeg {
+            context.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        }
         // EXIF transforms in Core Graphics' bottom-left coordinate system.
         let w = CGFloat(image.width)
         let h = CGFloat(image.height)
@@ -81,7 +87,7 @@ nonisolated struct ImageConversion: ImageConverting {
         var properties: [CFString: Any] = [kCGImageDestinationEmbedThumbnail: false]
         if type == .jpeg {
             properties[kCGImageDestinationLossyCompressionQuality] = 0.90
-        } else {
+        } else if type == .tiff {
             properties[kCGImagePropertyTIFFDictionary] = [kCGImagePropertyTIFFCompression: 5] // Lossless LZW.
         }
         CGImageDestinationAddImage(destination, image, properties as CFDictionary)

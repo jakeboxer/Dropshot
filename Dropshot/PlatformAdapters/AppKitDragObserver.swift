@@ -91,6 +91,10 @@ final class AppKitDragObserver: NSObject {
         guard globalMonitor == nil, localMonitor == nil else { return }
 
         lastPasteboardObservation = currentPasteboardObservation()
+        // Escape can remove the HEIC payload while the physical drag continues with
+        // the mouse button held. macOS provides no observable signal for that removal,
+        // so guidance may remain visible until mouse release; Escape alone is not
+        // evidence that the drag ended.
         let eventMask: NSEvent.EventTypeMask = [.leftMouseDragged, .leftMouseUp]
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: eventMask) { [weak self] event in
             Task { @MainActor in

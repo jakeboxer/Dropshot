@@ -60,6 +60,7 @@ final class DropZonePanelController: DropZonePresenting {
     private let onCancelled: () -> Void
     private let onAcceptedDrop: (AcceptedDrop) -> Void
     private let onRejectedDrop: () -> Void
+    private let visibleFrameForAnchor: (NSWindow, NSRect) -> NSRect?
     private weak var anchorView: NSView?
     private var visibilityRevision: UInt = 0
     private var isVisibilityRequested = false
@@ -70,7 +71,8 @@ final class DropZonePanelController: DropZonePresenting {
         onDestinationExited: @escaping () -> Void = {},
         onCancelled: @escaping () -> Void = {},
         onAcceptedDrop: @escaping (AcceptedDrop) -> Void = { _ in },
-        onRejectedDrop: @escaping () -> Void = {}
+        onRejectedDrop: @escaping () -> Void = {},
+        visibleFrameForAnchor: ((NSWindow, NSRect) -> NSRect?)? = nil
     ) {
         self.onDestinationEntered = onDestinationEntered
         self.onDestinationUpdated = onDestinationUpdated
@@ -78,6 +80,11 @@ final class DropZonePanelController: DropZonePresenting {
         self.onCancelled = onCancelled
         self.onAcceptedDrop = onAcceptedDrop
         self.onRejectedDrop = onRejectedDrop
+        self.visibleFrameForAnchor = visibleFrameForAnchor ?? { anchorWindow, anchorFrame in
+            anchorWindow.screen?.visibleFrame
+                ?? NSScreen.screens.first(where: { $0.frame.intersects(anchorFrame) })?.visibleFrame
+                ?? NSScreen.main?.visibleFrame
+        }
         dropView = DropZoneView(content: content)
         panel = DropZonePanel(contentView: dropView)
         dropView.onDestinationDrop = { [weak self] evidence in
@@ -102,7 +109,30 @@ final class DropZonePanelController: DropZonePresenting {
     }
 
     func anchor(to view: NSView?) {
+        NotificationCenter.default.removeObserver(self)
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
         anchorView = view
+        guard let view else { return }
+
+        view.postsFrameChangedNotifications = true
+        view.postsBoundsChangedNotifications = true
+        observeAnchorGeometry(NSView.frameDidChangeNotification, object: view)
+        observeAnchorGeometry(NSView.boundsDidChangeNotification, object: view)
+        if let anchorWindow = view.window {
+            observeAnchorGeometry(NSWindow.didMoveNotification, object: anchorWindow)
+            observeAnchorGeometry(NSWindow.didResizeNotification, object: anchorWindow)
+            observeAnchorGeometry(NSWindow.didChangeScreenNotification, object: anchorWindow)
+        }
+        observeAnchorGeometry(NSApplication.didChangeScreenParametersNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(anchorGeometryDidChange),
+            name: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil
+        )
+        if isVisibilityRequested {
+            positionBelowAnchor()
+        }
     }
 
     func render(_ presentation: DropZonePresentation) {
@@ -138,10 +168,37 @@ final class DropZonePanelController: DropZonePresenting {
     private func positionBelowAnchor() {
         guard let anchorView, let anchorWindow = anchorView.window else { return }
         let anchorFrame = anchorWindow.convertToScreen(anchorView.convert(anchorView.bounds, to: nil))
-        panel.setFrameOrigin(NSPoint(
+        var panelFrame = NSRect(
             x: anchorFrame.midX - panel.frame.width / 2,
-            y: anchorFrame.minY - 8 - panel.frame.height
-        ))
+            y: anchorFrame.minY - 8 - panel.frame.height,
+            width: panel.frame.width,
+            height: panel.frame.height
+        )
+        if let visibleFrame = visibleFrameForAnchor(anchorWindow, anchorFrame) {
+            panelFrame.origin.x = min(
+                max(panelFrame.minX, visibleFrame.minX),
+                visibleFrame.maxX - panelFrame.width
+            )
+            panelFrame.origin.y = min(
+                max(panelFrame.minY, visibleFrame.minY),
+                visibleFrame.maxY - panelFrame.height
+            )
+        }
+        panel.setFrame(panelFrame, display: false)
+    }
+
+    private func observeAnchorGeometry(_ name: Notification.Name, object: Any?) {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(anchorGeometryDidChange),
+            name: name,
+            object: object
+        )
+    }
+
+    @objc private func anchorGeometryDidChange() {
+        guard isVisibilityRequested else { return }
+        positionBelowAnchor()
     }
 
     private func present() {
@@ -260,7 +317,12 @@ final class DropZonePanel: NSPanel {
         isFloatingPanel = true
         hidesOnDeactivate = false
         level = .statusBar
-        collectionBehavior = [.transient]
+        collectionBehavior = [
+            .canJoinAllSpaces,
+            .canJoinAllApplications,
+            .fullScreenAuxiliary,
+            .transient
+        ]
     }
 
     override var canBecomeKey: Bool { false }

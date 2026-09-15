@@ -5,6 +5,26 @@ import Testing
 @MainActor
 struct DropZonePanelTests {
     @Test
+    func staleDismissalCannotHideANewPresentation() async throws {
+        let presentation = DropZonePanelController()
+        defer { presentation.panel.orderOut(nil) }
+
+        presentation.render(.guidance(.jpeg))
+        try await Task.sleep(for: .milliseconds(250))
+        presentation.render(.hidden)
+        try await Task.sleep(for: .milliseconds(50))
+        presentation.render(.guidance(.png))
+        try await Task.sleep(for: .milliseconds(250))
+
+        #expect(presentation.panel.isVisible)
+        #expect(presentation.content == .guidance(for: .png))
+
+        presentation.render(.hidden)
+        try await Task.sleep(for: .milliseconds(250))
+        #expect(!presentation.panel.isVisible)
+    }
+
+    @Test
     func guidanceAndSuccessPresentationUseTheApprovedCopy() {
         let presentation = DropZonePanelController()
 

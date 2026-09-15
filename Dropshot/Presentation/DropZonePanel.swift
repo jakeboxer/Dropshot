@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 
 nonisolated struct DropZoneContent: Equatable, Sendable {
     enum SymbolTreatment: Equatable, Sendable {
@@ -46,6 +47,9 @@ nonisolated struct DropZoneContent: Equatable, Sendable {
 
 @MainActor
 final class DropZonePanelController: DropZonePresenting {
+    private static let transitionDuration: TimeInterval = 0.17
+    private static let hiddenScale = 0.96
+
     let panel: DropZonePanel
     private(set) var content = DropZoneContent.guidance(for: .jpeg)
 
@@ -57,6 +61,8 @@ final class DropZonePanelController: DropZonePresenting {
     private let onAcceptedDrop: (AcceptedDrop) -> Void
     private let onRejectedDrop: () -> Void
     private weak var anchorView: NSView?
+    private var visibilityRevision: UInt = 0
+    private var isVisibilityRequested = false
 
     init(
         onDestinationEntered: @escaping (Bool) -> Void = { _ in },
@@ -102,17 +108,15 @@ final class DropZonePanelController: DropZonePresenting {
     func render(_ presentation: DropZonePresentation) {
         switch presentation {
         case .hidden:
-            panel.orderOut(nil)
+            dismiss()
         case .guidance(let format):
             content = .guidance(for: format)
             dropView.render(content)
-            positionBelowAnchor()
-            panel.orderFrontRegardless()
+            present()
         case .success(let format, _):
             content = .success(for: format)
             dropView.render(content)
-            positionBelowAnchor()
-            panel.orderFrontRegardless()
+            present()
         }
     }
 
@@ -138,6 +142,103 @@ final class DropZonePanelController: DropZonePresenting {
             x: anchorFrame.midX - panel.frame.width / 2,
             y: anchorFrame.minY - 8 - panel.frame.height
         ))
+    }
+
+    private func present() {
+        dropView.acceptsDestinationDrops = true
+        positionBelowAnchor()
+        guard !isVisibilityRequested else { return }
+
+        isVisibilityRequested = true
+        visibilityRevision &+= 1
+
+        if !panel.isVisible {
+            panel.alphaValue = 0
+            setScale(Self.hiddenScale)
+            panel.orderFrontRegardless()
+        }
+
+        animate(alpha: 1, scale: 1)
+    }
+
+    private func dismiss() {
+        dropView.acceptsDestinationDrops = false
+        guard isVisibilityRequested else { return }
+
+        isVisibilityRequested = false
+        visibilityRevision &+= 1
+        let revision = visibilityRevision
+
+        guard panel.isVisible else {
+            panel.alphaValue = 0
+            setScale(Self.hiddenScale)
+            return
+        }
+
+        animate(alpha: 0, scale: Self.hiddenScale) { [weak self] in
+            guard let self,
+                  self.visibilityRevision == revision,
+                  !self.isVisibilityRequested else { return }
+            self.panel.orderOut(nil)
+        }
+    }
+
+    private func animate(
+        alpha: CGFloat,
+        scale: CGFloat,
+        completion: @escaping () -> Void = {}
+    ) {
+        animateScale(to: scale)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Self.transitionDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = alpha
+        } completionHandler: {
+            completion()
+        }
+    }
+
+    private func animateScale(to scale: CGFloat) {
+        guard let layer = dropView.layer else { return }
+        let currentTransform = layer.presentation()?.transform ?? layer.transform
+        let targetTransform = topCenteredScale(scale, on: layer)
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.transform = targetTransform
+        CATransaction.commit()
+
+        let animation = CABasicAnimation(keyPath: "transform")
+        animation.fromValue = NSValue(caTransform3D: currentTransform)
+        animation.toValue = NSValue(caTransform3D: targetTransform)
+        animation.duration = Self.transitionDuration
+        animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        layer.add(animation, forKey: "dropZoneVisibilityScale")
+    }
+
+    private func setScale(_ scale: CGFloat) {
+        guard let layer = dropView.layer else { return }
+        layer.removeAnimation(forKey: "dropZoneVisibilityScale")
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.transform = topCenteredScale(scale, on: layer)
+        CATransaction.commit()
+    }
+
+    private func topCenteredScale(_ scale: CGFloat, on layer: CALayer) -> CATransform3D {
+        // Keep the top center fixed without changing AppKit's layer anchor or view frame.
+        let pivot = CGPoint(
+            x: layer.bounds.midX,
+            y: dropView.isFlipped ? layer.bounds.minY : layer.bounds.maxY
+        )
+        let anchor = CGPoint(
+            x: layer.bounds.minX + layer.bounds.width * layer.anchorPoint.x,
+            y: layer.bounds.minY + layer.bounds.height * layer.anchorPoint.y
+        )
+        var transform = CATransform3DMakeScale(scale, scale, 1)
+        transform.m41 = (pivot.x - anchor.x) * (1 - scale)
+        transform.m42 = (pivot.y - anchor.y) * (1 - scale)
+        return transform
     }
 }
 
@@ -168,6 +269,7 @@ final class DropZonePanel: NSPanel {
 
 @MainActor
 private final class DropZoneView: NSVisualEffectView {
+    var acceptsDestinationDrops = false
     var onDestinationEntered: (Bool) -> Void = { _ in }
     var onDestinationUpdated: (Bool) -> Void = { _ in }
     var onDestinationExited: () -> Void = {}
@@ -202,13 +304,13 @@ private final class DropZoneView: NSVisualEffectView {
     }
 
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
-        guard isEligibleDestination(sender) else { return [] }
+        guard acceptsDestinationDrops, isEligibleDestination(sender) else { return [] }
         onDestinationEntered(optionHeld)
         return .copy
     }
 
     override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
-        guard isEligibleDestination(sender) else { return [] }
+        guard acceptsDestinationDrops, isEligibleDestination(sender) else { return [] }
         onDestinationUpdated(optionHeld)
         return .copy
     }
@@ -222,10 +324,11 @@ private final class DropZoneView: NSVisualEffectView {
     }
 
     override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool {
-        isEligibleDestination(sender)
+        acceptsDestinationDrops && isEligibleDestination(sender)
     }
 
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        guard acceptsDestinationDrops else { return false }
         let pasteboard = sender.draggingPasteboard
         let descriptor = DragPasteboardSnapshot.descriptor(from: pasteboard)
         let accepted = onDestinationDrop(DestinationDropEvidence(

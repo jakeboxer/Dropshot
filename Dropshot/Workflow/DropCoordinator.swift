@@ -1,4 +1,4 @@
-protocol ImageConverting: Sendable {
+nonisolated protocol ImageConverting: Sendable {
     func convert(_ request: ConversionRequest) async -> Result<ConvertedImage, ImageConversionFailure>
 }
 
@@ -9,7 +9,7 @@ protocol ClipboardPublishing: AnyObject {
 
 @MainActor
 protocol DropZonePresenting: AnyObject {
-    func setDropZonePresented(_ isPresented: Bool)
+    func render(_ presentation: DropZonePresentation)
 }
 
 @MainActor
@@ -51,10 +51,43 @@ final class DropCoordinator {
         renderDropZoneRequest()
     }
 
+    func destinationEntered(optionHeld: Bool) {
+        handleActiveInteraction(.destinationEntered(optionHeld: optionHeld))
+    }
+
+    func destinationUpdated(optionHeld: Bool) {
+        handleActiveInteraction(.destinationUpdated(optionHeld: optionHeld))
+    }
+
+    func destinationExited() {
+        endInteraction(.destinationExited)
+    }
+
+    func mouseReleased() {
+        endInteraction(.mouseReleased)
+    }
+
+    func interruptInteraction() {
+        endInteraction(.interrupted)
+    }
+
+    func cancelInteraction() {
+        endInteraction(.cancelled)
+    }
+
+    func pointerStateChanged(_ pointerState: DragPointerState) {
+        let previousPresentation = workflow.presentation
+        _ = workflow.handle(.pointerStateChanged(pointerState))
+        if workflow.presentation != previousPresentation {
+            renderDropZoneRequest()
+        }
+    }
+
     var selectedFormat: OutputFormat { workflow.selectedFormat }
 
     func modifiersChanged(optionHeld: Bool) {
         _ = workflow.handle(.modifiersChanged(optionHeld: optionHeld))
+        renderDropZoneRequest()
     }
 
     func accept(_ acceptedDrop: AcceptedDrop) async throws {
@@ -64,7 +97,17 @@ final class DropCoordinator {
     }
 
     private func renderDropZoneRequest() {
-        presentation.setDropZonePresented(workflow.isDropZoneRequested)
+        presentation.render(workflow.presentation)
+    }
+
+    private func handleActiveInteraction(_ event: DropWorkflow.Event) {
+        _ = workflow.handle(event)
+        renderDropZoneRequest()
+    }
+
+    private func endInteraction(_ event: DropWorkflow.Event) {
+        _ = workflow.handle(event)
+        renderDropZoneRequest()
     }
 
     private func execute(_ effects: [DropWorkflow.Effect]) async throws {
@@ -83,12 +126,29 @@ final class DropCoordinator {
                 }
                 do {
                     try clipboard.publish(handoff)
-                    _ = workflow.handle(.clipboardHandoffCompleted(dropID: handoff.dropID))
+                    let effects = workflow.handle(.clipboardHandoffCompleted(
+                        dropID: handoff.dropID,
+                        format: handoff.format
+                    ))
+                    renderDropZoneRequest()
+                    try await execute(effects)
                 } catch {
                     _ = workflow.handle(.clipboardHandoffFailed(dropID: handoff.dropID))
                     throw error
                 }
+
+            case .dismissSuccessFeedback(let duration, let dropID):
+                Task { [weak self] in
+                    try? await Task.sleep(for: duration)
+                    guard !Task.isCancelled else { return }
+                    self?.successFeedbackElapsed(dropID: dropID)
+                }
             }
         }
+    }
+
+    private func successFeedbackElapsed(dropID: DropID) {
+        _ = workflow.handle(.successFeedbackElapsed(dropID: dropID))
+        renderDropZoneRequest()
     }
 }

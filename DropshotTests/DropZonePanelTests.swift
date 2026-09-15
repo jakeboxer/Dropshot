@@ -5,6 +5,49 @@ import Testing
 @MainActor
 struct DropZonePanelTests {
     @Test
+    func staleDismissalCannotHideANewPresentation() async throws {
+        let presentation = DropZonePanelController()
+        defer { presentation.panel.orderOut(nil) }
+
+        presentation.render(.guidance(.jpeg))
+        try await Task.sleep(for: .milliseconds(250))
+        presentation.render(.hidden)
+        try await Task.sleep(for: .milliseconds(50))
+        presentation.render(.guidance(.png))
+        try await Task.sleep(for: .milliseconds(250))
+
+        #expect(presentation.panel.isVisible)
+        #expect(presentation.content == .guidance(for: .png))
+
+        presentation.render(.hidden)
+        try await Task.sleep(for: .milliseconds(250))
+        #expect(!presentation.panel.isVisible)
+    }
+
+    @Test
+    func guidanceAndSuccessPresentationUseTheApprovedCopy() {
+        let presentation = DropZonePanelController()
+
+        presentation.render(.guidance(.png))
+        #expect(presentation.content == DropZoneContent(
+            symbolName: "arrow.down",
+            symbolTreatment: .orb,
+            title: "Drop HEIC here",
+            subtitle: "Release to copy as PNG",
+            footer: "Release ⌥ for JPEG"
+        ))
+
+        presentation.render(.success(.jpeg, dropID: DropID(1)))
+        #expect(presentation.content == DropZoneContent(
+            symbolName: "checkmark",
+            symbolTreatment: .standalone,
+            title: "Copied",
+            subtitle: "Ready to paste",
+            footer: "Copied as JPEG"
+        ))
+    }
+
+    @Test
     func dropZoneRejectsIneligibleDestinationPayloadBeforeAcceptance() {
         var acceptedDrops: [AcceptedDrop] = []
         var rejectionCount = 0
@@ -35,7 +78,9 @@ struct DropZonePanelTests {
             width: 202,
             height: 170
         ))
-        #expect(presentation.guidance == DropZoneGuidance(
+        #expect(presentation.content == DropZoneContent(
+            symbolName: "arrow.down",
+            symbolTreatment: .orb,
             title: "Drop HEIC here",
             subtitle: "Release to copy as JPEG",
             footer: "Hold ⌥ for PNG"

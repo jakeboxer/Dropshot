@@ -4,6 +4,82 @@ import Testing
 
 struct DropWorkflowTests {
     @Test
+    func destinationLifecycleUpdatesGuidanceAndAbandonmentDismissesSilently() {
+        var workflow = DropWorkflow()
+
+        #expect(workflow.handle(.destinationEntered(optionHeld: false)).isEmpty)
+        #expect(workflow.presentation == .guidance(.jpeg))
+        #expect(workflow.handle(.destinationUpdated(optionHeld: true)).isEmpty)
+        #expect(workflow.presentation == .guidance(.png))
+
+        let abandonmentEvents: [DropWorkflow.Event] = [
+            .destinationExited,
+            .mouseReleased,
+            .interrupted,
+            .cancelled
+        ]
+        for event in abandonmentEvents {
+            var abandonedWorkflow = DropWorkflow()
+            _ = abandonedWorkflow.handle(.destinationEntered(optionHeld: false))
+
+            #expect(abandonedWorkflow.handle(event).isEmpty)
+            #expect(abandonedWorkflow.presentation == .hidden)
+            #expect(abandonedWorkflow.activeDropID == nil)
+        }
+    }
+
+    @Test
+    func abandonmentSuppressesTheSamePhysicalDragUntilMouseRelease() {
+        var workflow = DropWorkflow()
+        let descriptor = DragDescriptor(items: [
+            .fileURL(URL(fileURLWithPath: "/image.heic"), contentType: .heic)
+        ])
+        _ = workflow.handle(.destinationEntered(optionHeld: false))
+        _ = workflow.handle(.destinationExited)
+
+        #expect(workflow.handle(.dragObserved(descriptor)).isEmpty)
+        #expect(workflow.presentation == .hidden)
+        #expect(workflow.handle(.destinationEntered(optionHeld: true)).isEmpty)
+        #expect(workflow.presentation == .hidden)
+        #expect(workflow.handle(.destinationUpdated(optionHeld: true)).isEmpty)
+        #expect(workflow.presentation == .hidden)
+        #expect(workflow.handle(.pointerStateChanged(DragPointerState(
+            leftMousePressed: false,
+            optionHeld: false
+        ))).isEmpty)
+        #expect(workflow.handle(.dragObserved(descriptor)).isEmpty)
+        #expect(workflow.presentation == .guidance(.jpeg))
+    }
+
+    @Test
+    func successfulHandoffShowsTimedFeedbackThatANewDragReplaces() throws {
+        var workflow = DropWorkflow()
+        let input = DroppedInput(fileURL: URL(fileURLWithPath: "/image.heic"))
+        let descriptor = DragDescriptor(items: [.fileURL(input.fileURL, contentType: .heic)])
+        let request = ConversionRequest(dropID: DropID(1), input: input, format: .png)
+        _ = workflow.handle(.acceptedDrop(try #require(DragClassifier.acceptDrop(
+            atDestination: descriptor,
+            input: input,
+            optionHeld: true
+        ))))
+
+        #expect(workflow.handle(.clipboardHandoffCompleted(
+            dropID: request.dropID,
+            format: request.format
+        )) == [.dismissSuccessFeedback(after: .milliseconds(800), dropID: request.dropID)])
+        #expect(workflow.presentation == .success(.png, dropID: DropID(1)))
+        #expect(workflow.handle(.successFeedbackElapsed(dropID: DropID(99))).isEmpty)
+        #expect(workflow.presentation == .success(.png, dropID: DropID(1)))
+        #expect(workflow.handle(.mouseReleased).isEmpty)
+        #expect(workflow.presentation == .success(.png, dropID: DropID(1)))
+
+        #expect(workflow.handle(.dragObserved(descriptor)).isEmpty)
+        #expect(workflow.presentation == .guidance(.png))
+        #expect(workflow.handle(.successFeedbackElapsed(dropID: DropID(1))).isEmpty)
+        #expect(workflow.presentation == .guidance(.png))
+    }
+
+    @Test
     func earlyObservationRequestsPresentationWithoutAuthorizingOrReplacingConversion() throws {
         var workflow = DropWorkflow()
         let input = DroppedInput(fileURL: URL(fileURLWithPath: "/image.heic"))

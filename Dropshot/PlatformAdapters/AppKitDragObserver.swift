@@ -66,6 +66,7 @@ final class AppKitDragObserver: NSObject {
     private var globalMonitor: Any?
     private var localMonitor: Any?
     private var lastPasteboardObservation: PasteboardObservation?
+    private var isPollingPointerState = false
 
     init(
         pasteboard: NSPasteboard = NSPasteboard(name: .drag),
@@ -100,7 +101,6 @@ final class AppKitDragObserver: NSObject {
             self?.handle(event)
             return event
         }
-        // Temporarily disabled for idle-energy A/B measurement.
     }
 
     func stop() {
@@ -113,7 +113,7 @@ final class AppKitDragObserver: NSObject {
             NSEvent.removeMonitor(localMonitor)
             self.localMonitor = nil
         }
-        pollingScheduler.stop()
+        stopPollingPointerState()
         lastPasteboardObservation = nil
     }
 
@@ -126,6 +126,30 @@ final class AppKitDragObserver: NSObject {
         onPointerStateChanged(pointerState())
     }
 
+    private func startPollingPointerState() {
+        guard !isPollingPointerState else { return }
+
+        isPollingPointerState = true
+        pollingScheduler.start { [weak self] in
+            self?.pollActivePointerState()
+        }
+    }
+
+    private func stopPollingPointerState() {
+        isPollingPointerState = false
+        pollingScheduler.stop()
+    }
+
+    private func pollActivePointerState() {
+        guard isPollingPointerState else { return }
+
+        let state = pointerState()
+        onPointerStateChanged(state)
+        if !state.leftMousePressed {
+            stopPollingPointerState()
+        }
+    }
+
     private func handle(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDragged:
@@ -134,8 +158,14 @@ final class AppKitDragObserver: NSObject {
                   observation != previousObservation else { return }
             lastPasteboardObservation = observation
             onObservation(observation.descriptor)
-            onPointerStateChanged(pointerState())
+            let state = pointerState()
+            onPointerStateChanged(state)
+            if state.leftMousePressed,
+               DragClassifier.classify(observation.descriptor) == .eligible {
+                startPollingPointerState()
+            }
         case .leftMouseUp:
+            stopPollingPointerState()
             onMouseReleased()
         default:
             break

@@ -106,6 +106,77 @@ struct AppKitDragObserverTests {
     }
 
     @Test
+    func explicitMouseReleaseStopsPollingAndTheNextEligibleDragRestartsIt() throws {
+        let pasteboard = NSPasteboard(name: .drag)
+        pasteboard.clearContents()
+        defer { pasteboard.clearContents() }
+        let scheduler = ManualDragPollingScheduler()
+        let presenter = AppKitDragObserverPresentationTestAdapter()
+        let coordinator = DropCoordinator(presentation: presenter)
+        let observer = AppKitDragObserver(
+            pasteboard: pasteboard,
+            pointerState: {
+                DragPointerState(leftMousePressed: true, optionHeld: false)
+            },
+            pollingScheduler: scheduler,
+            onObservation: coordinator.observeDrag,
+            onPointerStateChanged: coordinator.pointerStateChanged,
+            onMouseReleased: coordinator.mouseReleased,
+            onInterrupted: coordinator.interruptInteraction
+        )
+        observer.start()
+        defer { observer.stop() }
+        try writeEligibleHEIC(to: pasteboard)
+        try dispatchSyntheticMouseDrag()
+
+        #expect(scheduler.isRunning)
+        #expect(scheduler.startCount == 1)
+
+        try dispatchSyntheticMouseUp()
+
+        #expect(!scheduler.isRunning)
+        #expect(presenter.presentation == .hidden)
+
+        pasteboard.clearContents()
+        try writeEligibleHEIC(to: pasteboard)
+        try dispatchSyntheticMouseDrag()
+
+        #expect(scheduler.isRunning)
+        #expect(scheduler.startCount == 2)
+        #expect(presenter.presentation == .guidance(.jpeg))
+    }
+
+    @Test
+    func repeatedFreshObservationsReusePollingAndStoppingObserverCancelsIt() throws {
+        let pasteboard = NSPasteboard(name: .drag)
+        pasteboard.clearContents()
+        defer { pasteboard.clearContents() }
+        let scheduler = ManualDragPollingScheduler()
+        let observer = AppKitDragObserver(
+            pasteboard: pasteboard,
+            pointerState: {
+                DragPointerState(leftMousePressed: true, optionHeld: false)
+            },
+            pollingScheduler: scheduler,
+            onObservation: { _ in }
+        )
+        observer.start()
+        defer { observer.stop() }
+        try writeEligibleHEIC(to: pasteboard)
+        try dispatchSyntheticMouseDrag()
+        pasteboard.clearContents()
+        try writeEligibleHEIC(to: pasteboard)
+        try dispatchSyntheticMouseDrag()
+
+        #expect(scheduler.isRunning)
+        #expect(scheduler.startCount == 1)
+
+        observer.stop()
+
+        #expect(!scheduler.isRunning)
+    }
+
+    @Test
     func ordinaryMouseDragDoesNotPresentDropZoneFromUnrelatedDragPasteboardContents() throws {
         let pasteboard = NSPasteboard(name: .drag)
         pasteboard.clearContents()
@@ -191,6 +262,28 @@ struct AppKitDragObserverTests {
         NSApplication.shared.sendEvent(dispatchedMouseDrag)
     }
 
+    private func dispatchSyntheticMouseUp() throws {
+        let mouseUp = try #require(NSEvent.mouseEvent(
+            with: .leftMouseUp,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 0
+        ))
+        NSApplication.shared.postEvent(mouseUp, atStart: true)
+        let dispatchedMouseUp = try #require(NSApplication.shared.nextEvent(
+            matching: .leftMouseUp,
+            until: Date(timeIntervalSinceNow: 1),
+            inMode: .default,
+            dequeue: true
+        ))
+        NSApplication.shared.sendEvent(dispatchedMouseUp)
+    }
+
     private func writeEligibleHEIC(to pasteboard: NSPasteboard) throws {
         let heicURL = URL(fileURLWithPath: "/polling-lifecycle.heic")
         let heicItem = NSPasteboardItem()
@@ -204,8 +297,10 @@ struct AppKitDragObserverTests {
 private final class ManualDragPollingScheduler: DragPollingScheduling {
     private var action: (() -> Void)?
     var isRunning: Bool { action != nil }
+    private(set) var startCount = 0
 
     func start(_ action: @escaping () -> Void) {
+        startCount += 1
         self.action = action
     }
 

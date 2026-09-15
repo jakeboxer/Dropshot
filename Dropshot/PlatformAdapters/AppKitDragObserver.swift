@@ -13,6 +13,43 @@ nonisolated struct DragPointerState: Equatable, Sendable {
 }
 
 @MainActor
+protocol DragPollingScheduling: AnyObject {
+    func start(_ action: @escaping () -> Void)
+    func stop()
+}
+
+@MainActor
+private final class RunLoopDragPollingScheduler: NSObject, DragPollingScheduling {
+    private var timer: Timer?
+    private var action: (() -> Void)?
+
+    func start(_ action: @escaping () -> Void) {
+        guard timer == nil else { return }
+
+        self.action = action
+        let timer = Timer(
+            timeInterval: 1.0 / 60.0,
+            target: self,
+            selector: #selector(timerFired),
+            userInfo: nil,
+            repeats: true
+        )
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+        action = nil
+    }
+
+    @objc private func timerFired() {
+        action?()
+    }
+}
+
+@MainActor
 final class AppKitDragObserver: NSObject {
     private struct PasteboardObservation: Equatable {
         let changeCount: Int
@@ -25,14 +62,15 @@ final class AppKitDragObserver: NSObject {
     private let onPointerStateChanged: (DragPointerState) -> Void
     private let onMouseReleased: () -> Void
     private let onInterrupted: () -> Void
+    private let pollingScheduler: any DragPollingScheduling
     private var globalMonitor: Any?
     private var localMonitor: Any?
-    private var pollTimer: Timer?
     private var lastPasteboardObservation: PasteboardObservation?
 
     init(
         pasteboard: NSPasteboard = NSPasteboard(name: .drag),
         pointerState: @escaping () -> DragPointerState = { .current },
+        pollingScheduler: (any DragPollingScheduling)? = nil,
         onObservation: @escaping (DragDescriptor) -> Void,
         onPointerStateChanged: @escaping (DragPointerState) -> Void = { _ in },
         onMouseReleased: @escaping () -> Void = {},
@@ -44,6 +82,7 @@ final class AppKitDragObserver: NSObject {
         self.onPointerStateChanged = onPointerStateChanged
         self.onMouseReleased = onMouseReleased
         self.onInterrupted = onInterrupted
+        self.pollingScheduler = pollingScheduler ?? RunLoopDragPollingScheduler()
         super.init()
     }
 
@@ -61,15 +100,7 @@ final class AppKitDragObserver: NSObject {
             self?.handle(event)
             return event
         }
-        let timer = Timer(
-            timeInterval: 1.0 / 60.0,
-            target: self,
-            selector: #selector(pollTimerFired),
-            userInfo: nil,
-            repeats: true
-        )
-        RunLoop.main.add(timer, forMode: .common)
-        pollTimer = timer
+        // Temporarily disabled for idle-energy A/B measurement.
     }
 
     func stop() {
@@ -82,8 +113,7 @@ final class AppKitDragObserver: NSObject {
             NSEvent.removeMonitor(localMonitor)
             self.localMonitor = nil
         }
-        pollTimer?.invalidate()
-        pollTimer = nil
+        pollingScheduler.stop()
         lastPasteboardObservation = nil
     }
 
@@ -94,10 +124,6 @@ final class AppKitDragObserver: NSObject {
 
     func pollPointerState() {
         onPointerStateChanged(pointerState())
-    }
-
-    @objc private func pollTimerFired() {
-        pollPointerState()
     }
 
     private func handle(_ event: NSEvent) {

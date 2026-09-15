@@ -6,7 +6,7 @@ Issue #1 pre-agrees `DropWorkflow` as the highest deterministic interaction seam
 
 `DropZonePresentation` separates active guidance from terminal success. The presenter maps JPEG guidance to “Drop HEIC here,” “Release to copy as JPEG,” and “Hold ⌥ for PNG”; PNG guidance changes the latter lines to “Release to copy as PNG” and “Release ⌥ for JPEG.” Successful Clipboard Handoff completion replaces the orb border with a checkmark and shows “Copied,” “Ready to paste,” and the selected format. The workflow emits an 800 ms dismissal effect tagged with the Drop ID, so an obsolete timer cannot dismiss newer presentation. A new physical drag replaces success immediately.
 
-`AppKitDragObserver` remains a stateless platform adapter. Global and local AppKit monitors report mouse drag and mouse-up events, while a main-run-loop poll publishes the current button and Option state without keyboard monitoring or permission-gated APIs. That physical-button poll is the fallback when AppKit does not deliver a mouse-up callback: once the left button is no longer pressed, the workflow ends the interaction. A stationary drag remains valid indefinitely while the button is held; elapsed time alone is not evidence of abandonment. `DropZoneView` forwards destination entry, update, exit, drop, and cancellation callbacks. `DropCoordinator` returns those inputs to the workflow, renders changed presentation synchronously, and runs only the success-feedback timer.
+`AppKitDragObserver` remains a platform adapter and records only the latest drag-pasteboard observation, not workflow interaction state. Global and local AppKit monitors report mouse drag and mouse-up events, while a main-run-loop poll publishes the current button and Option state without keyboard monitoring or permission-gated APIs. The observer compares an observation token containing `NSPasteboard.changeCount` and the translated drag descriptor with the token captured when observation starts. The descriptor is included because a pasteboard owner can populate already-declared contents without another change-count increment. An ordinary mouse drag therefore cannot reuse unrelated HEIC data left on the drag pasteboard, while a newly published HEIC drag is still observed. That physical-button poll is the fallback when AppKit does not deliver a mouse-up callback: once the left button is no longer pressed, the workflow ends the interaction. A stationary drag remains valid indefinitely while the button is held; elapsed time alone is not evidence of abandonment. `DropZoneView` forwards destination entry, update, exit, drop, and cancellation callbacks. `DropCoordinator` returns those inputs to the workflow, renders changed presentation synchronously, and runs only the success-feedback timer.
 
 The live application still uses the presentation-only coordinator established by issue #15. `DropCoordinator.accept(_:)` covers Accepted Drop conversion, Clipboard Handoff completion, and success feedback through injected adapters; issue #20 owns the production atomic clipboard adapter and will make that path live without changing this interaction contract.
 
@@ -19,25 +19,27 @@ Each behavior began with a failing test at a pre-agreed seam before its minimum 
 3. `DropZonePanelTests/guidanceAndSuccessPresentationUseTheApprovedCopy` failed for the missing `render` seam and content model. Adding synchronous content rendering for JPEG, PNG, and success made the panel suite pass.
 4. `DragPasteboardSnapshotTests/dragObserverPublishesLivePointerState` failed for the missing pointer-state boundary. Adding button and Option polling plus mouse-up monitoring made the adapter suite pass.
 5. The initial implementation included an inactivity timeout. After product review rejected elapsed time as an abandonment signal, `DropCoordinatorTests/stationaryEligibleDragRemainsPresentedWhileMouseButtonIsHeld` failed under the old one-second timer. Removing the timer and timeout event made the test pass while retaining explicit and physical-button-driven cleanup.
+6. `AppKitDragObserverTests/ordinaryMouseDragDoesNotPresentDropZoneFromUnrelatedDragPasteboardContents` reproduced an ordinary text-selection drag presenting guidance from HEIC data that predated observer startup. Its companion `freshHEICDragPresentsJPEGGuidance` guarded the positive path. Capturing the drag pasteboard's change count and translated descriptor at startup, then sampling only after that observation changes, made both tests pass without moving interaction state into the adapter.
 
 Focused invocation:
 
 ```sh
 xcodebuild test -quiet -project Dropshot.xcodeproj -scheme Dropshot \
-  -destination 'platform=macOS,arch=arm64' -derivedDataPath /tmp/Dropshot16ReviewFixes \
+  -destination 'platform=macOS,arch=arm64' -derivedDataPath /tmp/Dropshot16ObserverFocused \
   -only-testing:DropshotTests/DropWorkflowTests \
   -only-testing:DropshotTests/DropCoordinatorTests \
   -only-testing:DropshotTests/DropZonePanelTests \
-  -only-testing:DropshotTests/DragPasteboardSnapshotTests CODE_SIGNING_ALLOWED=NO
+  -only-testing:DropshotTests/DragPasteboardSnapshotTests \
+  -only-testing:DropshotTests/AppKitDragObserverTests CODE_SIGNING_ALLOWED=NO
 ```
 
-Result: exit 0. All 19 focused workflow, coordinator, panel, and AppKit adapter test cases passed without compiler warnings.
+Result: exit 0. All 21 focused workflow, coordinator, panel, and AppKit adapter test cases passed without compiler warnings.
 
 ## Complete suite and typechecking
 
 ```sh
 xcodebuild test -quiet -project Dropshot.xcodeproj -scheme Dropshot \
-  -destination 'platform=macOS,arch=arm64' -derivedDataPath /tmp/Dropshot16FinalFullTests
+  -destination 'platform=macOS,arch=arm64' -derivedDataPath /tmp/Dropshot16ObserverFullSigned
 ```
 
 Result: exit 0. All unit tests and the UI smoke, launch, and launch-performance tests passed. No Swift compiler warnings were reported; Xcode emitted only non-failing debugger-version lookup diagnostics during UI-test launches.

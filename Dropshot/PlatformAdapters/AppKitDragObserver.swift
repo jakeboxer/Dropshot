@@ -14,6 +14,11 @@ nonisolated struct DragPointerState: Equatable, Sendable {
 
 @MainActor
 final class AppKitDragObserver: NSObject {
+    private struct PasteboardObservation: Equatable {
+        let changeCount: Int
+        let descriptor: DragDescriptor
+    }
+
     private let pasteboard: NSPasteboard
     private let pointerState: () -> DragPointerState
     private let onObservation: (DragDescriptor) -> Void
@@ -23,6 +28,7 @@ final class AppKitDragObserver: NSObject {
     private var globalMonitor: Any?
     private var localMonitor: Any?
     private var pollTimer: Timer?
+    private var lastPasteboardObservation: PasteboardObservation?
 
     init(
         pasteboard: NSPasteboard = NSPasteboard(name: .drag),
@@ -44,6 +50,7 @@ final class AppKitDragObserver: NSObject {
     func start() {
         guard globalMonitor == nil, localMonitor == nil else { return }
 
+        lastPasteboardObservation = currentPasteboardObservation()
         let eventMask: NSEvent.EventTypeMask = [.leftMouseDragged, .leftMouseUp]
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: eventMask) { [weak self] event in
             Task { @MainActor in
@@ -77,10 +84,11 @@ final class AppKitDragObserver: NSObject {
         }
         pollTimer?.invalidate()
         pollTimer = nil
+        lastPasteboardObservation = nil
     }
 
     func sampleDragPasteboard() {
-        onObservation(DragPasteboardSnapshot.descriptor(from: pasteboard))
+        onObservation(currentPasteboardObservation().descriptor)
         onPointerStateChanged(pointerState())
     }
 
@@ -95,12 +103,24 @@ final class AppKitDragObserver: NSObject {
     private func handle(_ event: NSEvent) {
         switch event.type {
         case .leftMouseDragged:
-            sampleDragPasteboard()
+            let observation = currentPasteboardObservation()
+            guard let previousObservation = lastPasteboardObservation,
+                  observation != previousObservation else { return }
+            lastPasteboardObservation = observation
+            onObservation(observation.descriptor)
+            onPointerStateChanged(pointerState())
         case .leftMouseUp:
             onMouseReleased()
         default:
             break
         }
+    }
+
+    private func currentPasteboardObservation() -> PasteboardObservation {
+        PasteboardObservation(
+            changeCount: pasteboard.changeCount,
+            descriptor: DragPasteboardSnapshot.descriptor(from: pasteboard)
+        )
     }
 
 }

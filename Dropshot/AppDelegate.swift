@@ -21,18 +21,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         dropZone = DropZonePanelController(
+            onDestinationEntered: { [weak self] optionHeld in
+                self?.dropCoordinator.destinationEntered(optionHeld: optionHeld)
+            },
+            onDestinationUpdated: { [weak self] optionHeld in
+                self?.dropCoordinator.destinationUpdated(optionHeld: optionHeld)
+            },
+            onDestinationExited: { [weak self] in
+                self?.dropCoordinator.destinationExited()
+            },
+            onCancelled: { [weak self] in
+                self?.dropCoordinator.cancelInteraction()
+            },
             onAcceptedDrop: { [weak self] _ in
                 self?.dropCoordinator.endDestinationInteraction()
             },
             onRejectedDrop: { [weak self] in
-                self?.dropCoordinator.endDestinationInteraction()
+                self?.dropCoordinator.cancelInteraction()
             }
         )
         dropZone.anchor(to: statusItem.button)
         dropCoordinator = DropCoordinator(presentation: dropZone)
-        dragObserver = AppKitDragObserver { [weak self] descriptor in
-            self?.dropCoordinator.observeDrag(descriptor)
-        }
+        dragObserver = AppKitDragObserver(
+            onObservation: { [weak self] descriptor in
+                self?.dropCoordinator.observeDrag(descriptor)
+            },
+            onPointerStateChanged: { [weak self] pointerState in
+                self?.dropCoordinator.pointerStateChanged(pointerState)
+            },
+            onMouseReleased: { [weak self] in
+                self?.dropCoordinator.mouseReleased()
+            },
+            onInterrupted: { [weak self] in
+                self?.dropCoordinator.interruptInteraction()
+            }
+        )
         dragObserver.start()
         
         let menu = NSMenu()

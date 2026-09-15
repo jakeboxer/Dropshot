@@ -5,6 +5,29 @@ import Testing
 @MainActor
 struct DropZonePanelTests {
     @Test
+    func guidanceAndSuccessPresentationUseTheApprovedCopy() {
+        let presentation = DropZonePanelController()
+
+        presentation.render(.guidance(.png))
+        #expect(presentation.content == DropZoneContent(
+            symbolName: "arrow.down",
+            symbolTreatment: .orb,
+            title: "Drop HEIC here",
+            subtitle: "Release to copy as PNG",
+            footer: "Release ⌥ for JPEG"
+        ))
+
+        presentation.render(.success(.jpeg, dropID: DropID(1)))
+        #expect(presentation.content == DropZoneContent(
+            symbolName: "checkmark",
+            symbolTreatment: .standalone,
+            title: "Copied",
+            subtitle: "Ready to paste",
+            footer: "Copied as JPEG"
+        ))
+    }
+
+    @Test
     func dropZoneRejectsIneligibleDestinationPayloadBeforeAcceptance() {
         var acceptedDrops: [AcceptedDrop] = []
         var rejectionCount = 0
@@ -35,7 +58,9 @@ struct DropZonePanelTests {
             width: 202,
             height: 170
         ))
-        #expect(presentation.guidance == DropZoneGuidance(
+        #expect(presentation.content == DropZoneContent(
+            symbolName: "arrow.down",
+            symbolTreatment: .orb,
             title: "Drop HEIC here",
             subtitle: "Release to copy as JPEG",
             footer: "Hold ⌥ for PNG"

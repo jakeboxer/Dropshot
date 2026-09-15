@@ -6,6 +6,32 @@ import UniformTypeIdentifiers
 @MainActor
 struct DragPasteboardSnapshotTests {
     @Test
+    func dragObserverPublishesLivePointerState() {
+        let pasteboard = NSPasteboard(name: .init("DropshotTests.\(UUID().uuidString)"))
+        defer { pasteboard.clearContents() }
+        var pointerState = DragPointerState(leftMousePressed: true, optionHeld: false)
+        var pointerStates: [DragPointerState] = []
+        let observer = AppKitDragObserver(
+            pasteboard: pasteboard,
+            pointerState: { pointerState },
+            onObservation: { _ in },
+            onPointerStateChanged: { pointerStates.append($0) }
+        )
+
+        observer.sampleDragPasteboard()
+        pointerState = DragPointerState(leftMousePressed: true, optionHeld: true)
+        observer.pollPointerState()
+        pointerState = DragPointerState(leftMousePressed: false, optionHeld: true)
+        observer.pollPointerState()
+
+        #expect(pointerStates == [
+            DragPointerState(leftMousePressed: true, optionHeld: false),
+            DragPointerState(leftMousePressed: true, optionHeld: true),
+            DragPointerState(leftMousePressed: false, optionHeld: true)
+        ])
+    }
+
+    @Test
     func snapshotPreservesMultipleDestinationItemsForAuthoritativeRejection() {
         let pasteboard = NSPasteboard(name: .init("DropshotTests.\(UUID().uuidString)"))
         defer { pasteboard.clearContents() }

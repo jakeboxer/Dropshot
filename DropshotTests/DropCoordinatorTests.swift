@@ -5,6 +5,24 @@ import Testing
 @MainActor
 struct DropCoordinatorTests {
     @Test
+    func stationaryEligibleDragRemainsPresentedWhileMouseButtonIsHeld() async throws {
+        let presenter = DropZonePresentationTestAdapter()
+        let coordinator = DropCoordinator(presentation: presenter)
+
+        coordinator.destinationEntered(optionHeld: false)
+        #expect(presenter.presentation == .guidance(.jpeg))
+        coordinator.destinationUpdated(optionHeld: true)
+        #expect(presenter.presentation == .guidance(.png))
+        coordinator.pointerStateChanged(DragPointerState(
+            leftMousePressed: true,
+            optionHeld: true
+        ))
+
+        try await Task.sleep(for: .milliseconds(1_100))
+        #expect(presenter.presentation == .guidance(.png))
+    }
+
+    @Test
     func destinationInteractionEndsWithoutConversionOrClipboardHandoff() async {
         let converter = ConversionTestAdapter(result: .failure(.failed))
         let clipboard = ClipboardTestAdapter()
@@ -81,10 +99,11 @@ struct DropCoordinatorTests {
             result: .success(ConvertedImage(requestedFormatData: jpegData, tiffData: tiffData))
         )
         let clipboard = ClipboardTestAdapter()
+        let presenter = DropZonePresentationTestAdapter()
         let coordinator = DropCoordinator(
             converter: converter,
             clipboard: clipboard,
-            presentation: DropZonePresentationTestAdapter()
+            presentation: presenter
         )
 
         try await coordinator.accept(try #require(DragClassifier.acceptDrop(
@@ -105,15 +124,19 @@ struct DropCoordinatorTests {
                 )
             )
         ])
+        #expect(presenter.presentation == .success(.jpeg, dropID: DropID(1)))
+        try await Task.sleep(for: .milliseconds(900))
+        #expect(presenter.presentation == .hidden)
     }
 }
 
 @MainActor
 private final class DropZonePresentationTestAdapter: DropZonePresenting {
-    private(set) var isPresented = false
+    private(set) var presentation: DropZonePresentation = .hidden
+    var isPresented: Bool { presentation != .hidden }
 
-    func setDropZonePresented(_ isPresented: Bool) {
-        self.isPresented = isPresented
+    func render(_ presentation: DropZonePresentation) {
+        self.presentation = presentation
     }
 }
 

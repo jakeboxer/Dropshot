@@ -30,10 +30,12 @@ nonisolated struct ImageConversion: ImageConverting {
     }
 
     private func visibleImage(at url: URL, format: OutputFormat) throws -> CGImage {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+        let input = try Data(contentsOf: url)
+        guard let source = CGImageSourceCreateWithData(input as CFData, nil),
               CGImageSourceGetType(source) == UTType.heic.identifier as CFString else {
             throw ImageConversionFailure.failed
         }
+        try HEICColorInformation.validate(input)
         let index = CGImageSourceGetPrimaryImageIndex(source)
         let options: [CFString: Any] = [
             kCGImageSourceDecodeRequest: kCGImageSourceDecodeToSDR,

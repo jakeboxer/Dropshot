@@ -19,5 +19,7 @@ xcrun swiftc \
     -o "$executable_dir/DropshotDragSource"
 cp "$script_dir/Info.plist" "$contents_dir/Info.plist"
 cp "$fixture" "$resources_dir/oriented-metadata.heic"
+codesign --force --sign - "$app_dir"
+codesign --verify --strict "$app_dir"
 
 printf '%s\n' "Built $app_dir"

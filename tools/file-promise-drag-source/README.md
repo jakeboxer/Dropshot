@@ -2,7 +2,7 @@
 
 This development-only AppKit executable starts real file-URL and file-promise drag sessions for Dropshot's live drag checks. It is compiled independently with `swiftc`; it is not part of the Dropshot Xcode project or shipped app.
 
-The build copies the checked-in `DropshotTests/Fixtures/oriented-metadata.heic` fixture into the helper's resources without changing its bytes. The file-URL card advertises the bundled fixture's URL and `public.heic` on the same pasteboard item. The promise card advertises `public.heic` through `NSFilePromiseProvider` and copies that fixture only when the destination requests delivery. The source fixture is never changed.
+The build ad-hoc signs and verifies the complete helper bundle. It copies the checked-in `DropshotTests/Fixtures/oriented-metadata.heic` fixture into the helper's resources without changing its bytes. The file-URL card uses AppKit’s standard `NSURL` pasteboard writer. Dropshot detects its HEIC content type through metadata before release. The promise card advertises `public.heic` through `NSFilePromiseProvider` and copies that fixture only when the destination requests delivery. The source fixture is never changed.
 
 ## Build and run
 
@@ -30,5 +30,7 @@ The helper prints the fixture's SHA-256, drag kind, and final drag operation. A 
 4. Repeat while physically holding Option before release. Confirm one item reports PNG and TIFF, not JPEG, and confirm the approved success feedback. The helper does not synthesize modifier state.
 5. Repeat steps 2–4 with the **File Promise** card. Confirm the helper prints both promise messages and that the destination path is a unique Dropshot-owned operation directory.
 6. After each promised conversion completes, click the inspection button and confirm `Promise input exists: false`, `Operation directory exists: false`, and `Fixture unchanged: true`. The displayed path is the unique Dropshot-owned operation directory that received the promise. The helper also prints the fixture SHA-256 at launch; the bundled default must match `shasum -a 256 DropshotTests/Fixtures/oriented-metadata.heic`.
+
+For each test, click **Inspect Clipboard and Promise Cleanup** before **Copy Results** because copying the captured report replaces the clipboard image. The copied report includes the inspection number, pasteboard change count, and last drag status. You can also select report text and press Command-C.
 
 The source app proves that AppKit requested and received a real file promise. Dropshot remains responsible for validating the delivered input, removing its Ephemeral Input, publishing the requested representation plus TIFF as exactly one pasteboard item, and showing success only after the Clipboard Handoff succeeds.

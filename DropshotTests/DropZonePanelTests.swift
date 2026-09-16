@@ -5,6 +5,24 @@ import Testing
 @MainActor
 struct DropZonePanelTests {
     @Test
+    func decorativeSymbolsDoNotInterceptDropZoneDrags() throws {
+        let presentation = DropZonePanelController()
+        defer { presentation.panel.orderOut(nil) }
+        let root = try #require(presentation.panel.contentView)
+        func descendants(of view: NSView) -> [NSView] {
+            view.subviews.flatMap { [$0] + descendants(of: $0) }
+        }
+        for state: DropZonePresentation in [.guidance(.jpeg), .guidance(.png), .success(.png, dropID: DropID(1))] {
+            presentation.render(state)
+            #expect(!root.registeredDraggedTypes.isEmpty)
+            // AppKit can route an image drag to a registered child instead of its parent.
+            for child in descendants(of: root) {
+                #expect(child.registeredDraggedTypes.isEmpty)
+            }
+        }
+    }
+
+    @Test
     func dropZoneIsCenteredEightPointsBelowTheLiveAnchor() {
         let (anchorWindow, anchorView) = makeAnchor(frameInScreen: NSRect(
             x: 500,

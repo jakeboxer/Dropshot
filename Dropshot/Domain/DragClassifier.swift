@@ -13,6 +13,9 @@ nonisolated struct DragDescriptor: Equatable, Sendable {
 
     enum Item: Equatable, Sendable {
         case fileURL(URL, contentType: ContentType)
+        // Metadata-only observation of a file URL. It intentionally carries no
+        // URL and can never authorize an Accepted Drop.
+        case fileReference(contentType: ContentType)
         // One content type per promised file, not alternate representations of one file.
         case filePromise(contentTypes: [ContentType])
         case other
@@ -41,6 +44,8 @@ nonisolated enum DragClassifier {
         switch item {
         case .fileURL(let url, _):
             guard !input.isFilePromise, input.fileURL == url else { return nil }
+        case .fileReference:
+            return nil
         case .filePromise:
             if input.isFilePromise {
                 return AcceptedDrop(input: input, optionHeld: optionHeld)
@@ -62,6 +67,12 @@ nonisolated enum DragClassifier {
             let extensionName = url.pathExtension.lowercased()
             guard extensionName.isEmpty || extensionName == "heic" else { return .ineligible }
             return extensionName == "heic" || contentType == .heic ? .eligible : .indeterminate
+        case .fileReference(let contentType):
+            switch contentType {
+            case .heic: return .eligible
+            case .other: return .ineligible
+            case .unknown: return .indeterminate
+            }
         case .filePromise(let contentTypes):
             guard !contentTypes.isEmpty else { return .indeterminate }
             guard contentTypes.count == 1, contentTypes[0] != .other else { return .ineligible }

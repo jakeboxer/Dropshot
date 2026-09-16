@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 
 nonisolated struct DragPointerState: Equatable, Sendable {
     let leftMousePressed: Bool
@@ -63,15 +64,26 @@ final class AppKitDragObserver: NSObject {
     private let onMouseReleased: () -> Void
     private let onInterrupted: () -> Void
     private let pollingScheduler: any DragPollingScheduling
+    private let detectFileContentType: (
+        NSPasteboard,
+        @escaping @MainActor (UTType?) -> Void
+    ) -> Void
     private var globalMonitor: Any?
     private var localMonitor: Any?
     private var lastPasteboardObservation: PasteboardObservation?
     private var isPollingPointerState = false
+    private var metadataGeneration: UInt = 0
+    private var pendingMetadataChangeCount: Int?
+    private var detectedMetadata: (changeCount: Int, contentType: UTType?)?
 
     init(
         pasteboard: NSPasteboard = NSPasteboard(name: .drag),
         pointerState: @escaping () -> DragPointerState = { .current },
         pollingScheduler: (any DragPollingScheduling)? = nil,
+        detectFileContentType: ((
+            NSPasteboard,
+            @escaping @MainActor (UTType?) -> Void
+        ) -> Void)? = nil,
         onObservation: @escaping (DragDescriptor) -> Void,
         onPointerStateChanged: @escaping (DragPointerState) -> Void = { _ in },
         onMouseReleased: @escaping () -> Void = {},
@@ -84,6 +96,12 @@ final class AppKitDragObserver: NSObject {
         self.onMouseReleased = onMouseReleased
         self.onInterrupted = onInterrupted
         self.pollingScheduler = pollingScheduler ?? RunLoopDragPollingScheduler()
+        self.detectFileContentType = detectFileContentType ?? { pasteboard, completion in
+            Task { @MainActor in
+                let metadata = try? await pasteboard.detectedMetadata(for: [\.contentType])
+                completion(metadata?.contentType)
+            }
+        }
         super.init()
     }
 
@@ -108,6 +126,7 @@ final class AppKitDragObserver: NSObject {
     }
 
     func stop() {
+        invalidateMetadataDetection()
         onInterrupted()
         if let globalMonitor {
             NSEvent.removeMonitor(globalMonitor)
@@ -122,8 +141,12 @@ final class AppKitDragObserver: NSObject {
     }
 
     func sampleDragPasteboard() {
-        onObservation(currentPasteboardObservation().descriptor)
-        onPointerStateChanged(pointerState())
+        let observation = currentPasteboardObservation()
+        lastPasteboardObservation = observation
+        onObservation(observation.descriptor)
+        let state = pointerState()
+        onPointerStateChanged(state)
+        requestFileContentTypeIfNeeded(for: observation, pointerState: state)
     }
 
     func pollPointerState() {
@@ -150,6 +173,7 @@ final class AppKitDragObserver: NSObject {
         let state = pointerState()
         onPointerStateChanged(state)
         if !state.leftMousePressed {
+            invalidateMetadataDetection()
             stopPollingPointerState()
         }
     }
@@ -164,11 +188,13 @@ final class AppKitDragObserver: NSObject {
             onObservation(observation.descriptor)
             let state = pointerState()
             onPointerStateChanged(state)
+            requestFileContentTypeIfNeeded(for: observation, pointerState: state)
             if state.leftMousePressed,
                DragClassifier.classify(observation.descriptor) == .eligible {
                 startPollingPointerState()
             }
         case .leftMouseUp:
+            invalidateMetadataDetection()
             stopPollingPointerState()
             onMouseReleased()
         default:
@@ -177,10 +203,57 @@ final class AppKitDragObserver: NSObject {
     }
 
     private func currentPasteboardObservation() -> PasteboardObservation {
-        PasteboardObservation(
-            changeCount: pasteboard.changeCount,
-            descriptor: DragPasteboardSnapshot.descriptor(from: pasteboard)
+        let changeCount = pasteboard.changeCount
+        let contentType = detectedMetadata?.changeCount == changeCount
+            ? detectedMetadata?.contentType : nil
+        return PasteboardObservation(
+            changeCount: changeCount,
+            descriptor: DragPasteboardSnapshot.observation(
+                from: pasteboard, detectedFileContentType: contentType
+            )
         )
+    }
+
+    private func requestFileContentTypeIfNeeded(
+        for observation: PasteboardObservation,
+        pointerState state: DragPointerState
+    ) {
+        guard state.leftMousePressed,
+              observation.descriptor.items == [.fileReference(contentType: .unknown)],
+              pendingMetadataChangeCount != observation.changeCount else { return }
+
+        metadataGeneration &+= 1
+        let generation = metadataGeneration
+        let changeCount = observation.changeCount
+        pendingMetadataChangeCount = changeCount
+        startPollingPointerState()
+        detectFileContentType(pasteboard) { [weak self] contentType in
+            guard let self,
+                  self.metadataGeneration == generation,
+                  self.pendingMetadataChangeCount == changeCount,
+                  self.pasteboard.changeCount == changeCount,
+                  self.pointerState().leftMousePressed else { return }
+
+            // Keep the resolved metadata for this pasteboard revision so later
+            // pointer movement cannot replace it with an unknown observation.
+            self.detectedMetadata = (changeCount, contentType)
+            let descriptor = DragPasteboardSnapshot.observation(
+                from: self.pasteboard,
+                detectedFileContentType: contentType
+            )
+            let refined = PasteboardObservation(changeCount: changeCount, descriptor: descriptor)
+            guard refined != observation else { return }
+            self.lastPasteboardObservation = refined
+            self.onObservation(descriptor)
+            if DragClassifier.classify(descriptor) == .eligible {
+                self.startPollingPointerState()
+            }
+        }
+    }
+
+    private func invalidateMetadataDetection() {
+        metadataGeneration &+= 1
+        pendingMetadataChangeCount = nil
     }
 
 }

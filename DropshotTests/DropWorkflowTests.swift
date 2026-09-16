@@ -4,6 +4,80 @@ import Testing
 
 struct DropWorkflowTests {
     @Test
+    func releaseInsideDestinationWaitsForAppKitDropCallback() throws {
+        var workflow = DropWorkflow()
+        let input = DroppedInput(fileURL: URL(fileURLWithPath: "/image.heic"))
+        let descriptor = DragDescriptor(items: [.fileURL(input.fileURL, contentType: .heic)])
+        _ = workflow.handle(.dragObserved(descriptor))
+        _ = workflow.handle(.destinationEntered(optionHeld: true))
+        _ = workflow.handle(.pointerStateChanged(DragPointerState(leftMousePressed: false, optionHeld: true)))
+        _ = workflow.handle(.mouseReleased)
+        #expect(workflow.presentation == .guidance(.png))
+        #expect(workflow.activeDropID == nil)
+        let accepted = try #require(DragClassifier.acceptDrop(
+            atDestination: descriptor, input: input, optionHeld: true
+        ))
+        #expect(workflow.handle(.acceptedDrop(accepted)) == [
+            .convert(ConversionRequest(dropID: DropID(1), input: input, format: .png))
+        ])
+        #expect(workflow.presentation == .hidden)
+        _ = workflow.handle(.dragObserved(descriptor))
+        #expect(workflow.presentation == .guidance(.png))
+    }
+
+    @Test
+    func destinationEndingBeforeDeferredAcceptanceDoesNotSuppressTheNextDrag() throws {
+        var workflow = DropWorkflow()
+        let input = DroppedInput(fileURL: URL(fileURLWithPath: "/image.heic"))
+        let descriptor = DragDescriptor(items: [.fileURL(input.fileURL, contentType: .heic)])
+        _ = workflow.handle(.dragObserved(descriptor))
+        _ = workflow.handle(.destinationEntered(optionHeld: false))
+        _ = workflow.handle(.mouseReleased)
+        _ = workflow.handle(.cancelled)
+        let accepted = try #require(DragClassifier.acceptDrop(atDestination: descriptor, input: input))
+        _ = workflow.handle(.acceptedDrop(accepted))
+        _ = workflow.handle(.dragObserved(descriptor))
+        #expect(workflow.presentation == .guidance(.jpeg))
+    }
+
+    @Test
+    func releaseOutsideDestinationStillDismissesGuidance() {
+        var workflow = DropWorkflow()
+        let descriptor = DragDescriptor(items: [.fileURL(URL(fileURLWithPath: "/image.heic"), contentType: .heic)])
+        _ = workflow.handle(.dragObserved(descriptor))
+        _ = workflow.handle(.mouseReleased)
+        #expect(workflow.presentation == .hidden)
+        _ = workflow.handle(.dragObserved(descriptor))
+        _ = workflow.handle(.pointerStateChanged(DragPointerState(leftMousePressed: false, optionHeld: false)))
+        #expect(workflow.presentation == .hidden)
+    }
+
+    @Test
+    func abandonmentAfterReleaseAtDestinationAllowsTheNextDrag() {
+        let descriptor = DragDescriptor(items: [
+            .fileURL(URL(fileURLWithPath: "/image.heic"), contentType: .heic)
+        ])
+        let abandonmentEvents: [DropWorkflow.Event] = [
+            .destinationExited,
+            .destinationInteractionEnded,
+            .interrupted,
+            .cancelled
+        ]
+
+        for event in abandonmentEvents {
+            var workflow = DropWorkflow()
+            _ = workflow.handle(.dragObserved(descriptor))
+            _ = workflow.handle(.destinationEntered(optionHeld: false))
+            _ = workflow.handle(.mouseReleased)
+            _ = workflow.handle(event)
+
+            #expect(workflow.presentation == .hidden)
+            #expect(workflow.handle(.dragObserved(descriptor)).isEmpty)
+            #expect(workflow.presentation == .guidance(.jpeg))
+        }
+    }
+
+    @Test
     func destinationLifecycleUpdatesGuidanceAndAbandonmentDismissesSilently() {
         var workflow = DropWorkflow()
 
@@ -14,7 +88,6 @@ struct DropWorkflowTests {
 
         let abandonmentEvents: [DropWorkflow.Event] = [
             .destinationExited,
-            .mouseReleased,
             .interrupted,
             .cancelled
         ]

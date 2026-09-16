@@ -57,10 +57,7 @@ struct DragPasteboardSnapshotTests {
         let pasteboard = NSPasteboard(name: .init("DropshotTests.\(UUID().uuidString)"))
         defer { pasteboard.clearContents() }
         let url = URL(fileURLWithPath: "/destination-image.heic")
-        let item = NSPasteboardItem()
-        #expect(item.setString(url.absoluteString, forType: .fileURL))
-        #expect(item.setData(Data(), forType: .init(UTType.heic.identifier)))
-        #expect(pasteboard.writeObjects([item]))
+        #expect(pasteboard.writeObjects([url as NSURL]))
         let descriptor = DragPasteboardSnapshot.descriptor(from: pasteboard)
 
         let input = try #require(DragPasteboardSnapshot.destinationInput(
@@ -95,6 +92,30 @@ struct DragPasteboardSnapshotTests {
     }
 
     @Test
+    func destinationEvidenceRetainsThePromiseFromItsAuthoritativeSnapshot() throws {
+        let pasteboard = NSPasteboard(name: .init("DropshotTests.\(UUID().uuidString)"))
+        defer { pasteboard.clearContents() }
+        let delegate = PromiseProviderDelegate(data: Data([0x48, 0x45, 0x49, 0x43]))
+        let provider = NSFilePromiseProvider(
+            fileType: UTType.heic.identifier,
+            delegate: delegate
+        )
+        #expect(pasteboard.writeObjects([provider]))
+
+        let evidence = DragPasteboardSnapshot.destinationEvidence(
+            from: pasteboard,
+            optionHeld: true
+        )
+
+        #expect(evidence.descriptor == DragDescriptor(items: [
+            .filePromise(contentTypes: [.heic])
+        ]))
+        #expect(try #require(evidence.input).isFilePromise)
+        #expect(evidence.optionHeld)
+        #expect(delegate.writeCount == 0)
+    }
+
+    @Test
     func dragObserverPublishesAPasteboardSnapshotWithoutRequestingPermissions() {
         let pasteboard = NSPasteboard(name: .init("DropshotTests.\(UUID().uuidString)"))
         defer { pasteboard.clearContents() }
@@ -108,7 +129,58 @@ struct DragPasteboardSnapshotTests {
 
         observer.sampleDragPasteboard()
 
-        #expect(observations == [DragDescriptor(items: [.fileURL(url, contentType: .heic)])])
+        #expect(observations == [DragDescriptor(items: [.fileReference(contentType: .heic)])])
+    }
+
+    @Test
+    func observationDoesNotRequestLazyFileURLContents() {
+        let pasteboard = NSPasteboard(name: .init("DropshotTests.\(UUID().uuidString)"))
+        defer { pasteboard.clearContents() }
+        let provider = CountingPasteboardDataProvider()
+        let item = NSPasteboardItem()
+        item.setDataProvider(provider, forTypes: [.fileURL])
+        item.setData(Data(), forType: .init(UTType.heic.identifier))
+        #expect(pasteboard.writeObjects([item]))
+
+        let observation = DragPasteboardSnapshot.observation(from: pasteboard)
+
+        #expect(observation == DragDescriptor(items: [.fileReference(contentType: .heic)]))
+        #expect(provider.requestCount == 0)
+    }
+
+    @Test
+    func detectedMetadataRefinesAFileReferenceWithoutMaterializingItsURL() {
+        let pasteboard = NSPasteboard(name: .init("DropshotTests.\(UUID().uuidString)"))
+        defer { pasteboard.clearContents() }
+        let provider = CountingPasteboardDataProvider()
+        let item = NSPasteboardItem()
+        item.setDataProvider(provider, forTypes: [.fileURL])
+        #expect(pasteboard.writeObjects([item]))
+
+        let observation = DragPasteboardSnapshot.observation(
+            from: pasteboard,
+            detectedFileContentType: .heic
+        )
+
+        #expect(observation == DragDescriptor(items: [.fileReference(contentType: .heic)]))
+        #expect(provider.requestCount == 0)
+    }
+
+    @Test
+    func destinationEvidenceUsesOneAuthoritativeURLForDescriptorAndInput() throws {
+        let pasteboard = NSPasteboard(name: .init("DropshotTests.\(UUID().uuidString)"))
+        defer { pasteboard.clearContents() }
+        let URL = URL(fileURLWithPath: "/destination-evidence.heic")
+        #expect(pasteboard.writeObjects([URL as NSURL]))
+
+        let evidence = DragPasteboardSnapshot.destinationEvidence(
+            from: pasteboard,
+            optionHeld: true
+        )
+
+        #expect(evidence.descriptor.items == [.fileURL(URL, contentType: .unknown)])
+        #expect(try #require(evidence.input).fileURL == URL)
+        #expect(evidence.optionHeld)
     }
 
     @Test
@@ -125,6 +197,28 @@ struct DragPasteboardSnapshotTests {
 
         #expect(descriptor == DragDescriptor(items: [.fileURL(url, contentType: .heic)]))
         #expect(DragClassifier.classify(descriptor) == .eligible)
+    }
+}
+
+private final class CountingPasteboardDataProvider:
+    NSObject,
+    NSPasteboardItemDataProvider,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var requests = 0
+
+    nonisolated var requestCount: Int {
+        lock.withLock { requests }
+    }
+
+    nonisolated func pasteboard(
+        _ pasteboard: NSPasteboard?,
+        item: NSPasteboardItem,
+        provideDataForType type: NSPasteboard.PasteboardType
+    ) {
+        lock.withLock { requests += 1 }
+        item.setString(URL(fileURLWithPath: "/lazy.heic").absoluteString, forType: type)
     }
 }
 

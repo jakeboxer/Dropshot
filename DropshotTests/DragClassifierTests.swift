@@ -79,6 +79,15 @@ struct DragClassifierTests {
     }
 
     @Test
+    func observedHEICFileReferenceGuidesEligibilityButCannotAuthorizeADrop() {
+        let observation = DragDescriptor(items: [.fileReference(contentType: .heic)])
+        let input = DroppedInput(fileURL: URL(fileURLWithPath: "/image.heic"))
+
+        #expect(DragClassifier.classify(observation) == .eligible)
+        #expect(DragClassifier.acceptDrop(atDestination: observation, input: input) == nil)
+    }
+
+    @Test
     func singleExplicitHEICFileURLIsEligible() {
         let descriptor = DragDescriptor(items: [.fileURL(
             URL(fileURLWithPath: "/not-read/IMAGE.HEIC"), contentType: .unknown

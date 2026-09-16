@@ -366,13 +366,13 @@ private final class DropZoneView: NSVisualEffectView {
     }
 
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
-        guard acceptsDestinationDrops, isEligibleDestination(sender) else { return [] }
+        guard acceptsDestinationDrops, canReceiveDestination(sender) else { return [] }
         onDestinationEntered(optionHeld)
         return .copy
     }
 
     override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
-        guard acceptsDestinationDrops, isEligibleDestination(sender) else { return [] }
+        guard acceptsDestinationDrops, canReceiveDestination(sender) else { return [] }
         onDestinationUpdated(optionHeld)
         return .copy
     }
@@ -386,24 +386,20 @@ private final class DropZoneView: NSVisualEffectView {
     }
 
     override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool {
-        acceptsDestinationDrops && isEligibleDestination(sender)
+        acceptsDestinationDrops && canReceiveDestination(sender)
     }
 
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
         guard acceptsDestinationDrops else { return false }
-        let pasteboard = sender.draggingPasteboard
-        let descriptor = DragPasteboardSnapshot.descriptor(from: pasteboard)
-        let optionHeldAtRelease = optionHeld
-        let accepted = onDestinationDrop(DestinationDropEvidence(
-            descriptor: descriptor,
-            input: DragPasteboardSnapshot.destinationInput(from: pasteboard, descriptor: descriptor),
-            optionHeld: optionHeldAtRelease
+        return onDestinationDrop(DragPasteboardSnapshot.destinationEvidence(
+            from: sender.draggingPasteboard, optionHeld: optionHeld
         ))
-        return accepted
     }
 
-    private func isEligibleDestination(_ sender: any NSDraggingInfo) -> Bool {
-        DragClassifier.classify(DragPasteboardSnapshot.descriptor(from: sender.draggingPasteboard)) == .eligible
+    private func canReceiveDestination(_ sender: any NSDraggingInfo) -> Bool {
+        // Hover may lack file metadata. Only the fresh release-time evidence
+        // authorizes conversion; do not read file-URL contents while hovering.
+        DragClassifier.classify(DragPasteboardSnapshot.observation(from: sender.draggingPasteboard)) != .ineligible
     }
 
     private var optionHeld: Bool {
@@ -422,6 +418,9 @@ private final class DropZoneView: NSVisualEffectView {
     }
 
     private func installContent() {
+        // NSImageView registers image drag types by default. Keep the decorative
+        // symbol from becoming a competing destination inside the Drop Zone.
+        symbol.unregisterDraggedTypes()
         symbol.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 25, weight: .semibold)
         symbol.contentTintColor = .controlAccentColor
 

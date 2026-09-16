@@ -8,6 +8,8 @@ struct DropWorkflow {
     private enum InteractionState {
         case idle
         case observing
+        case destination
+        case releasedAtDestination
         case suppressedUntilMouseRelease
     }
 
@@ -55,7 +57,9 @@ struct DropWorkflow {
     mutating func handle(_ event: Event) -> [Effect] {
         switch event {
         case .dragObserved(let descriptor):
-            guard interactionState != .suppressedUntilMouseRelease else {
+            guard interactionState != .suppressedUntilMouseRelease,
+                  interactionState != .destination,
+                  interactionState != .releasedAtDestination else {
                 return []
             }
             presentation = DragClassifier.classify(descriptor) == .eligible
@@ -69,36 +73,52 @@ struct DropWorkflow {
             guard interactionState != .suppressedUntilMouseRelease else {
                 return []
             }
-            interactionState = .observing
+            if interactionState != .releasedAtDestination {
+                interactionState = .destination
+            }
             updateGuidance(optionHeld: optionHeld)
             return []
 
         case .destinationExited,
              .destinationInteractionEnded,
              .interrupted:
-            interactionState = .suppressedUntilMouseRelease
+            interactionState = interactionState == .releasedAtDestination
+                ? .idle : .suppressedUntilMouseRelease
             presentation = .hidden
             return []
 
         case .cancelled:
-            guard interactionState == .observing else { return [] }
-            interactionState = .suppressedUntilMouseRelease
+            guard interactionState == .observing || interactionState == .destination
+                || interactionState == .releasedAtDestination else { return [] }
+            interactionState = interactionState == .releasedAtDestination
+                ? .idle : .suppressedUntilMouseRelease
             presentation = .hidden
             return []
 
         case .pointerStateChanged(let pointerState):
             guard pointerState.leftMousePressed else {
+                if interactionState == .destination || interactionState == .releasedAtDestination {
+                    interactionState = .releasedAtDestination
+                    return []
+                }
                 interactionState = .idle
                 if case .guidance = presentation {
                     presentation = .hidden
                 }
                 return []
             }
-            guard interactionState == .observing else { return [] }
+            guard interactionState == .observing || interactionState == .destination
+                || interactionState == .releasedAtDestination else { return [] }
             updateGuidance(optionHeld: pointerState.optionHeld)
             return []
 
         case .mouseReleased:
+            // AppKit may deliver the authoritative drop after a monitor or polling
+            // callback observes release. Keep its destination available until then.
+            if interactionState == .destination || interactionState == .releasedAtDestination {
+                interactionState = .releasedAtDestination
+                return []
+            }
             interactionState = .idle
             if case .guidance = presentation {
                 presentation = .hidden
@@ -114,7 +134,10 @@ struct DropWorkflow {
             return []
 
         case .acceptedDrop(let acceptedDrop):
-            interactionState = .suppressedUntilMouseRelease
+            // The async coordinator may accept after AppKit has already ended
+            // the released destination interaction. Do not wait for a second release.
+            interactionState = interactionState == .releasedAtDestination || interactionState == .idle
+                ? .idle : .suppressedUntilMouseRelease
             presentation = .hidden
             selectedFormat = FormatSelection.resolve(optionHeld: acceptedDrop.optionHeld)
             let request = ConversionRequest(

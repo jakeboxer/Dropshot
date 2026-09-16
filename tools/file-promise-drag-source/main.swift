@@ -54,13 +54,20 @@ private final class DragSourceView: NSView, NSDraggingSource {
     private let kind: DragKind
     private let fixtureURL: URL
     private let promiseDelegate: PromiseDelegate
+    private let reportStatus: (String) -> Void
     private var initialMouseDownEvent: NSEvent?
     private var dragStarted = false
 
-    init(kind: DragKind, fixtureURL: URL, promiseDelegate: PromiseDelegate) {
+    init(
+        kind: DragKind,
+        fixtureURL: URL,
+        promiseDelegate: PromiseDelegate,
+        reportStatus: @escaping (String) -> Void
+    ) {
         self.kind = kind
         self.fixtureURL = fixtureURL
         self.promiseDelegate = promiseDelegate
+        self.reportStatus = reportStatus
         super.init(frame: .zero)
 
         wantsLayer = true
@@ -111,10 +118,7 @@ private final class DragSourceView: NSView, NSDraggingSource {
         let pasteboardWriter: NSPasteboardWriting
         switch kind {
         case .fileURL:
-            let item = NSPasteboardItem()
-            item.setString(fixtureURL.absoluteString, forType: .fileURL)
-            item.setData(Data(), forType: .init(UTType.heic.identifier))
-            pasteboardWriter = item
+            pasteboardWriter = fixtureURL as NSURL
         case .filePromise:
             pasteboardWriter = NSFilePromiseProvider(
                 fileType: UTType.heic.identifier,
@@ -135,6 +139,7 @@ private final class DragSourceView: NSView, NSDraggingSource {
         item.setDraggingFrame(frame, contents: image)
 
         print("Starting \(kind.rawValue) drag for \(fixtureURL.path)")
+        reportStatus("Last drag: started \(kind.rawValue)")
         beginDraggingSession(with: [item], event: initialMouseDownEvent, source: self)
     }
 
@@ -158,6 +163,7 @@ private final class DragSourceView: NSView, NSDraggingSource {
         initialMouseDownEvent = nil
         dragStarted = false
         print("Drag ended with operation: \(operation.rawValue)")
+        reportStatus("Last drag: ended \(kind.rawValue), operation rawValue \(operation.rawValue)")
     }
 }
 
@@ -168,6 +174,10 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
     private var promiseDelegate: PromiseDelegate?
     private var evidenceLabel: NSTextField?
+    private var dragStatusLabel: NSTextField?
+    private var copyResultsButton: NSButton?
+    private var lastInspectionReport: String?
+    private var inspectionCount = 0
 
     init(fixtureURL: URL, fixtureHash: String) {
         self.fixtureURL = fixtureURL
@@ -175,17 +185,24 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        installMainMenu()
+
         let promiseDelegate = PromiseDelegate(fixtureURL: fixtureURL)
         self.promiseDelegate = promiseDelegate
+        let reportDragStatus: (String) -> Void = { [weak self] status in
+            self?.dragStatusLabel?.stringValue = status
+        }
         let fileURLSource = DragSourceView(
             kind: .fileURL,
             fixtureURL: fixtureURL,
-            promiseDelegate: promiseDelegate
+            promiseDelegate: promiseDelegate,
+            reportStatus: reportDragStatus
         )
         let promiseSource = DragSourceView(
             kind: .filePromise,
             fixtureURL: fixtureURL,
-            promiseDelegate: promiseDelegate
+            promiseDelegate: promiseDelegate,
+            reportStatus: reportDragStatus
         )
         fileURLSource.translatesAutoresizingMaskIntoConstraints = false
         promiseSource.translatesAutoresizingMaskIntoConstraints = false
@@ -208,15 +225,39 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         inspectButton.bezelStyle = .rounded
 
+        let copyResultsButton = NSButton(
+            title: "Copy Results",
+            target: self,
+            action: #selector(copyResults)
+        )
+        copyResultsButton.bezelStyle = .rounded
+        copyResultsButton.isEnabled = false
+        self.copyResultsButton = copyResultsButton
+
+        let buttonStack = NSStackView(views: [inspectButton, copyResultsButton])
+        buttonStack.orientation = .horizontal
+        buttonStack.alignment = .centerY
+        buttonStack.spacing = 8
+
+        let dragStatusLabel = NSTextField(
+            labelWithString: "Last drag: no drag session started yet"
+        )
+        dragStatusLabel.alignment = .center
+        dragStatusLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        self.dragStatusLabel = dragStatusLabel
+
         let evidenceLabel = NSTextField(
             wrappingLabelWithString: "After a drop, inspect the clipboard representations and last promised path."
         )
         evidenceLabel.alignment = .center
         evidenceLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        evidenceLabel.maximumNumberOfLines = 6
+        evidenceLabel.maximumNumberOfLines = 7
+        evidenceLabel.isSelectable = true
         self.evidenceLabel = evidenceLabel
 
-        let contentStack = NSStackView(views: [fixtureLabel, sourceStack, inspectButton, evidenceLabel])
+        let contentStack = NSStackView(
+            views: [fixtureLabel, sourceStack, dragStatusLabel, buttonStack, evidenceLabel]
+        )
         contentStack.orientation = .vertical
         contentStack.spacing = 16
         contentStack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
@@ -234,7 +275,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         ])
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 640, height: 390),
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 430),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -252,8 +293,38 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
+    private func installMainMenu() {
+        let mainMenu = NSMenu()
+
+        let appMenuItem = NSMenuItem(
+            title: "Dropshot Drag Source",
+            action: nil,
+            keyEquivalent: ""
+        )
+        mainMenu.addItem(appMenuItem)
+        let appMenu = NSMenu()
+        appMenuItem.submenu = appMenu
+        appMenu.addItem(
+            withTitle: "Quit Dropshot Drag Source",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        )
+
+        let editMenuItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+        mainMenu.addItem(editMenuItem)
+        let editMenu = NSMenu(title: "Edit")
+        editMenuItem.submenu = editMenu
+        editMenu.addItem(
+            withTitle: "Copy",
+            action: #selector(NSText.copy(_:)),
+            keyEquivalent: "c"
+        )
+
+        NSApp.mainMenu = mainMenu
+    }
 
     @objc private func inspectEvidence() {
+        inspectionCount += 1
         let pasteboard = NSPasteboard.general
         let items = pasteboard.pasteboardItems ?? []
         let types = items.flatMap(\.types)
@@ -275,10 +346,20 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let currentFixtureHash = try? sha256(of: fixtureURL)
         let fixtureIsUnchanged = currentFixtureHash == fixtureHash
-        let summary = "Items: \(items.count)  JPEG: \(hasJPEG)  PNG: \(hasPNG)  TIFF: \(hasTIFF)\nFixture unchanged: \(fixtureIsUnchanged)\n\(promiseDescription)"
+        let dragStatus = dragStatusLabel?.stringValue ?? "Last drag: status unavailable"
+        let summary = "\(dragStatus)\nInspection #\(inspectionCount)  Pasteboard changeCount: \(pasteboard.changeCount)\nItems: \(items.count)  JPEG: \(hasJPEG)  PNG: \(hasPNG)  TIFF: \(hasTIFF)\nFixture unchanged: \(fixtureIsUnchanged)\n\(promiseDescription)"
+        lastInspectionReport = summary
+        copyResultsButton?.isEnabled = true
         evidenceLabel?.stringValue = summary
         print("Clipboard types: \(types.map(\.rawValue))")
         print(summary)
+    }
+
+    @objc private func copyResults() {
+        guard let lastInspectionReport else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(lastInspectionReport, forType: .string)
     }
 }
 

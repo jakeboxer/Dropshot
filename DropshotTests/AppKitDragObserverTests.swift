@@ -7,6 +7,69 @@ import UniformTypeIdentifiers
 @Suite(.serialized)
 struct AppKitDragObserverTests {
     @Test
+    func metadataRefinementSurvivesFurtherPointerMovementWithoutAnotherRequest() throws {
+        let pasteboard = NSPasteboard(name: .init("DropshotTests.\(UUID().uuidString)"))
+        defer { pasteboard.releaseGlobally() }
+        var completions: [@MainActor (UTType?) -> Void] = []
+        var observations: [DragDescriptor] = []
+        let observer = AppKitDragObserver(
+            pasteboard: pasteboard,
+            pointerState: { DragPointerState(leftMousePressed: true, optionHeld: false) },
+            pollingScheduler: ManualDragPollingScheduler(),
+            detectFileContentType: { _, completion in completions.append(completion) },
+            onObservation: { observations.append($0) }
+        )
+        observer.start()
+        defer { observer.stop() }
+        #expect(pasteboard.writeObjects([URL(fileURLWithPath: "/metadata.heic") as NSURL]))
+        try dispatchSyntheticMouseDrag()
+        #expect(completions.count == 1)
+        let completion = try #require(completions.first)
+        completion(.heic)
+        #expect(observations.last == DragDescriptor(items: [.fileReference(contentType: .heic)]))
+        let countAfterRefinement = observations.count
+        try dispatchSyntheticMouseDrag()
+        #expect(observations.count == countAfterRefinement)
+        #expect(completions.count == 1)
+    }
+
+    @Test(arguments: ["release", "stop", "replace", "polledRelease"])
+    func staleMetadataCannotRestoreGuidance(after boundary: String) throws {
+        let pasteboard = NSPasteboard(name: .init("DropshotTests.\(UUID().uuidString)"))
+        defer { pasteboard.releaseGlobally() }
+        var completions: [@MainActor (UTType?) -> Void] = []
+        var observations: [DragDescriptor] = []
+        var pressed = true
+        let scheduler = ManualDragPollingScheduler()
+        let observer = AppKitDragObserver(
+            pasteboard: pasteboard,
+            pointerState: { DragPointerState(leftMousePressed: pressed, optionHeld: false) },
+            pollingScheduler: scheduler,
+            detectFileContentType: { _, completion in completions.append(completion) },
+            onObservation: { observations.append($0) }
+        )
+        observer.start()
+        defer { observer.stop() }
+        #expect(pasteboard.writeObjects([URL(fileURLWithPath: "/stale.heic") as NSURL]))
+        try dispatchSyntheticMouseDrag()
+        let completion = try #require(completions.first)
+        switch boundary {
+        case "release": try dispatchSyntheticMouseUp()
+        case "stop": observer.stop()
+        case "replace":
+            pasteboard.clearContents()
+            #expect(pasteboard.setString("replacement", forType: .string))
+        default:
+            pressed = false
+            scheduler.fire()
+            pressed = true
+        }
+        let countBeforeCompletion = observations.count
+        completion(.heic)
+        #expect(observations.count == countBeforeCompletion)
+    }
+
+    @Test
     func observerDoesNotPollWhileNoEligibleDragIsActive() {
         let pasteboard = NSPasteboard(name: .init("DropshotTests.\(UUID().uuidString)"))
         defer { pasteboard.clearContents() }

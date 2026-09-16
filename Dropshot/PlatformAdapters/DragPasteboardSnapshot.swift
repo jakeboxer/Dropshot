@@ -35,16 +35,33 @@ enum DragPasteboardSnapshot {
         return DragDescriptor(items: items)
     }
 
-    static func singleFileInput(from pasteboard: NSPasteboard) -> DroppedInput? {
-        singleFileInput(from: descriptor(from: pasteboard))
-    }
-
-    static func singleFileInput(from descriptor: DragDescriptor) -> DroppedInput? {
+    static func destinationInput(
+        from pasteboard: NSPasteboard,
+        descriptor: DragDescriptor
+    ) -> DroppedInput? {
         guard descriptor.items?.count == 1,
-              case .fileURL(let url, _) = descriptor.items?.first else {
+              let item = descriptor.items?.first else {
             return nil
         }
-        return DroppedInput(fileURL: url)
+
+        switch item {
+        case .fileURL(let url, _):
+            return DroppedInput(fileURL: url)
+        case .filePromise(let contentTypes):
+            guard contentTypes == [.heic] else { return nil }
+            let receivers = pasteboard.readObjects(
+                forClasses: [NSFilePromiseReceiver.self],
+                options: nil
+            ) as? [NSFilePromiseReceiver] ?? []
+            guard receivers.count == 1,
+                  receivers[0].fileTypes.map(contentType) == [.heic] else {
+                return nil
+            }
+            let receipt = FilePromiseReceipt(receiver: receivers[0])
+            return DroppedInput(receivePromisedFile: receipt.receive)
+        case .other:
+            return nil
+        }
     }
 
     private static func fileURL(from item: NSPasteboardItem) -> URL? {

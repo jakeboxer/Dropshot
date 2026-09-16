@@ -49,7 +49,49 @@ struct DragPasteboardSnapshotTests {
 
         #expect(descriptor.items?.count == 2)
         #expect(DragClassifier.classify(descriptor) == .ineligible)
-        #expect(DragPasteboardSnapshot.singleFileInput(from: pasteboard) == nil)
+        #expect(DragPasteboardSnapshot.destinationInput(from: pasteboard, descriptor: descriptor) == nil)
+    }
+
+    @Test
+    func destinationSnapshotCreatesTheMatchingMaterializedInput() throws {
+        let pasteboard = NSPasteboard(name: .init("DropshotTests.\(UUID().uuidString)"))
+        defer { pasteboard.clearContents() }
+        let url = URL(fileURLWithPath: "/destination-image.heic")
+        let item = NSPasteboardItem()
+        #expect(item.setString(url.absoluteString, forType: .fileURL))
+        #expect(item.setData(Data(), forType: .init(UTType.heic.identifier)))
+        #expect(pasteboard.writeObjects([item]))
+        let descriptor = DragPasteboardSnapshot.descriptor(from: pasteboard)
+
+        let input = try #require(DragPasteboardSnapshot.destinationInput(
+            from: pasteboard,
+            descriptor: descriptor
+        ))
+
+        #expect(input.fileURL == url)
+        #expect(!input.isFilePromise)
+    }
+
+    @Test
+    func destinationSnapshotCreatesOnePendingHEICPromiseWithoutFulfillingIt() throws {
+        let pasteboard = NSPasteboard(name: .init("DropshotTests.\(UUID().uuidString)"))
+        defer { pasteboard.clearContents() }
+        let delegate = PromiseProviderDelegate(data: Data([0x48, 0x45, 0x49, 0x43]))
+        let provider = NSFilePromiseProvider(
+            fileType: UTType.heic.identifier,
+            delegate: delegate
+        )
+        #expect(pasteboard.writeObjects([provider]))
+
+        let descriptor = DragPasteboardSnapshot.descriptor(from: pasteboard)
+        let input = try #require(DragPasteboardSnapshot.destinationInput(
+            from: pasteboard,
+            descriptor: descriptor
+        ))
+
+        #expect(descriptor == DragDescriptor(items: [.filePromise(contentTypes: [.heic])]))
+        #expect(input.isFilePromise)
+        #expect(delegate.writeCount == 0)
     }
 
     @Test
@@ -83,5 +125,55 @@ struct DragPasteboardSnapshotTests {
 
         #expect(descriptor == DragDescriptor(items: [.fileURL(url, contentType: .heic)]))
         #expect(DragClassifier.classify(descriptor) == .eligible)
+    }
+}
+
+private final class PromiseProviderDelegate:
+    NSObject,
+    NSFilePromiseProviderDelegate,
+    @unchecked Sendable
+{
+    private let data: Data
+    private let lock = NSLock()
+    private let queue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = 1
+        return queue
+    }()
+    private var writes = 0
+
+    nonisolated init(data: Data) {
+        self.data = data
+    }
+
+    nonisolated var writeCount: Int {
+        lock.withLock { writes }
+    }
+
+    nonisolated func filePromiseProvider(
+        _ filePromiseProvider: NSFilePromiseProvider,
+        fileNameForType fileType: String
+    ) -> String {
+        "promised.heic"
+    }
+
+    nonisolated func filePromiseProvider(
+        _ filePromiseProvider: NSFilePromiseProvider,
+        writePromiseTo url: URL,
+        completionHandler: @escaping (Error?) -> Void
+    ) {
+        do {
+            try data.write(to: url)
+            lock.withLock { writes += 1 }
+            completionHandler(nil)
+        } catch {
+            completionHandler(error)
+        }
+    }
+
+    nonisolated func operationQueue(
+        for filePromiseProvider: NSFilePromiseProvider
+    ) -> OperationQueue {
+        queue
     }
 }

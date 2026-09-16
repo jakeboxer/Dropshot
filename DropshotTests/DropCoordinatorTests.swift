@@ -5,6 +5,62 @@ import Testing
 @MainActor
 struct DropCoordinatorTests {
     @Test
+    func promisedHEICUsesTheAcceptedDropConversionAndCleansItsInput() async throws {
+        let source = try #require(Bundle(for: ClipboardTestAdapter.self)
+            .url(forResource: "transparency", withExtension: "heic"))
+        let receipt = ReceivedInputLocation()
+        let input = DroppedInput(receivePromisedFile: { directory, completion in
+            let url = directory.appendingPathComponent("promised.heic")
+            do {
+                try FileManager.default.copyItem(at: source, to: url)
+                receipt.record(url)
+                completion(.success(url))
+            } catch {
+                completion(.failure(error))
+            }
+        })
+        let clipboard = ClipboardTestAdapter()
+        let coordinator = DropCoordinator(
+            converter: ImageConversion(),
+            clipboard: clipboard,
+            presentation: DropZonePresentationTestAdapter()
+        )
+        try await coordinator.accept(try #require(DragClassifier.acceptDrop(
+            atDestination: DragDescriptor(items: [.filePromise(contentTypes: [.heic])]),
+            input: input, optionHeld: true
+        )))
+        let handoff = try #require(clipboard.handoffs.first)
+        #expect(handoff.format == .png)
+        #expect(handoff.convertedImage.requestedFormatData.starts(with: [137, 80, 78, 71, 13, 10, 26, 10]))
+        let receivedURL = try #require(receipt.url)
+        #expect(!FileManager.default.fileExists(atPath: receivedURL.deletingLastPathComponent().path))
+        #expect(FileManager.default.fileExists(atPath: source.path))
+    }
+
+    @Test
+    func cancelledAcceptedDropNeverPublishes() async throws {
+        let url = URL(fileURLWithPath: "/cancelled.heic")
+        let clipboard = ClipboardTestAdapter()
+        let coordinator = DropCoordinator(
+            converter: ConversionTestAdapter(result: .success(ConvertedImage(
+                requestedFormatData: Data([1]), tiffData: Data([2])
+            ))),
+            clipboard: clipboard,
+            presentation: DropZonePresentationTestAdapter()
+        )
+        let accepted = try #require(DragClassifier.acceptDrop(
+            atDestination: DragDescriptor(items: [.fileURL(url, contentType: .heic)]),
+            input: DroppedInput(fileURL: url)
+        ))
+        let operation = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try await coordinator.accept(accepted)
+        }
+        _ = await operation.result
+        #expect(clipboard.handoffs.isEmpty)
+    }
+
+    @Test
     func stationaryEligibleDragRemainsPresentedWhileMouseButtonIsHeld() async throws {
         let presenter = DropZonePresentationTestAdapter()
         let coordinator = DropCoordinator(presentation: presenter)
@@ -160,5 +216,18 @@ private final class ClipboardTestAdapter: ClipboardPublishing {
 
     func publish(_ handoff: ClipboardHandoff) throws {
         handoffs.append(handoff)
+    }
+}
+
+private final class ReceivedInputLocation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: URL?
+
+    var url: URL? {
+        lock.withLock { value }
+    }
+
+    func record(_ url: URL) {
+        lock.withLock { value = url }
     }
 }

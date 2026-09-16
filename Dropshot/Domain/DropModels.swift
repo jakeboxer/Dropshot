@@ -1,10 +1,5 @@
 import Foundation
 
-nonisolated struct DroppedInput: Equatable, Sendable {
-    // The caller keeps the source readable for the duration of conversion.
-    let fileURL: URL
-}
-
 nonisolated struct DestinationDropEvidence: Equatable, Sendable {
     let descriptor: DragDescriptor
     let input: DroppedInput?

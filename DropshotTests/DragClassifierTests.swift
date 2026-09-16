@@ -19,8 +19,27 @@ struct DragClassifierTests {
         #expect(DragClassifier.acceptDrop(atDestination: eligible, input: differentInput) == nil)
         let promise = DragDescriptor(items: [.filePromise(contentTypes: [.heic])])
         #expect(DragClassifier.acceptDrop(atDestination: promise, input: input)?.input == input)
+        #expect(DragClassifier.acceptDrop(
+            atDestination: promise,
+            input: DroppedInput(fileURL: URL(fileURLWithPath: "/conflict.jpg"))
+        ) == nil)
         #expect(DragClassifier.acceptDrop(atDestination: promise,
             input: DroppedInput(fileURL: URL(string: "https://example.com/image.heic")!)) == nil)
+    }
+
+    @Test
+    func eligiblePromiseDescriptorAuthorizesItsPendingPromiseInput() throws {
+        let input = DroppedInput { _, _ in }
+        let promise = DragDescriptor(items: [.filePromise(contentTypes: [.heic])])
+
+        let accepted = try #require(DragClassifier.acceptDrop(
+            atDestination: promise,
+            input: input,
+            optionHeld: true
+        ))
+
+        #expect(accepted.input == input)
+        #expect(accepted.optionHeld)
     }
 
     @Test(arguments: [

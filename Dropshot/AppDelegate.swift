@@ -14,6 +14,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var dragObserver: AppKitDragObserver!
     
     func applicationDidFinishLaunching(_ aNotification: Notification) {
+        do {
+            try DroppedInput.cleanupAbandonedInputs()
+        } catch {
+            NSLog("Dropshot could not clean abandoned Ephemeral Inputs.")
+        }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(
             systemSymbolName: "arrow.down.circle",

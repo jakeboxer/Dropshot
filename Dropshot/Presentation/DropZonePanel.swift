@@ -393,10 +393,11 @@ private final class DropZoneView: NSVisualEffectView {
         guard acceptsDestinationDrops else { return false }
         let pasteboard = sender.draggingPasteboard
         let descriptor = DragPasteboardSnapshot.descriptor(from: pasteboard)
+        let optionHeldAtRelease = optionHeld
         let accepted = onDestinationDrop(DestinationDropEvidence(
             descriptor: descriptor,
-            input: DragPasteboardSnapshot.singleFileInput(from: descriptor),
-            optionHeld: optionHeld
+            input: DragPasteboardSnapshot.destinationInput(from: pasteboard, descriptor: descriptor),
+            optionHeld: optionHeldAtRelease
         ))
         return accepted
     }

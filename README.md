@@ -47,7 +47,7 @@ xcodebuild test \
   -destination 'platform=macOS'
 ```
 
-The unit-test target covers AppKit drag-pasteboard snapshots, descriptor-only Drag Observation classification, nonactivating Drop Zone presentation, destination-only Accepted Drop creation and rejection, and the Accepted Drop through Default Conversion or PNG Format Override and Clipboard Handoff workflow. It also covers live modifier selection and real HEIC conversion to owned JPEG/PNG bytes plus TIFF fallback. Pixel checks cover orientation, transparency, primary-image selection, and source preservation. The UI-test target currently contains launch smoke tests.
+The unit-test target covers AppKit drag-pasteboard snapshots, descriptor-only Drag Observation classification, nonactivating Drop Zone presentation, destination-only Accepted Drop creation and rejection, and the Accepted Drop through Default Conversion or PNG Format Override and Clipboard Handoff workflow. It also covers operation-owned file-promise receipt and cleanup, cancellation before Clipboard Handoff, live modifier selection, and real HEIC conversion to owned JPEG/PNG bytes plus TIFF fallback. Pixel checks cover orientation, transparency, primary-image selection, and source preservation. The UI-test target currently contains launch smoke tests.
 
 ## Project structure
 

@@ -117,12 +117,32 @@ final class DropCoordinator {
                 guard let converter else {
                     throw ConfigurationError.dropProcessingUnavailable
                 }
-                let result = await converter.convert(request)
+                let result: Result<ConvertedImage, ImageConversionFailure>
+                do {
+                    result = try await request.input.withReadableFile { url in
+                        try Task.checkCancellation()
+                        return await converter.convert(ConversionRequest(
+                            dropID: request.dropID,
+                            input: DroppedInput(fileURL: url),
+                            format: request.format
+                        ))
+                    }
+                    try Task.checkCancellation()
+                } catch {
+                    try await execute(workflow.handle(.conversionCompleted(
+                        request: request, result: .failure(.failed)
+                    )))
+                    return
+                }
                 try await execute(workflow.handle(.conversionCompleted(request: request, result: result)))
 
             case .performClipboardHandoff(let handoff):
                 guard let clipboard else {
                     throw ConfigurationError.dropProcessingUnavailable
+                }
+                guard !Task.isCancelled else {
+                    _ = workflow.handle(.clipboardHandoffFailed(dropID: handoff.dropID))
+                    return
                 }
                 do {
                     try clipboard.publish(handoff)

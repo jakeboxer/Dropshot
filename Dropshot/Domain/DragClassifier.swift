@@ -31,7 +31,7 @@ nonisolated enum DragEligibility: Equatable, Sendable {
 
 nonisolated enum DragClassifier {
     // Call only on release at the Drop Zone with a fresh destination snapshot.
-    // For promises, the input owner must first finish receipt and keep it readable.
+    // Promise inputs retain receipt ownership and materialize only during conversion.
     static func acceptDrop(
         atDestination descriptor: DragDescriptor,
         input: DroppedInput,
@@ -40,8 +40,11 @@ nonisolated enum DragClassifier {
         guard classify(descriptor) == .eligible, let item = descriptor.items?.first else { return nil }
         switch item {
         case .fileURL(let url, _):
-            guard input.fileURL == url else { return nil }
+            guard !input.isFilePromise, input.fileURL == url else { return nil }
         case .filePromise:
+            if input.isFilePromise {
+                return AcceptedDrop(input: input, optionHeld: optionHeld)
+            }
             let received = DragDescriptor(items: [.fileURL(input.fileURL, contentType: .heic)])
             guard classify(received) == .eligible else { return nil }
         case .other:

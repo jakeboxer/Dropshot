@@ -48,9 +48,61 @@ Automated live check on 2026-09-15:
 - The production controller anchored a real system status-item button to its current screen. The panel remained wholly inside that screen's visible frame and satisfied the centered/eight-point relationship or its defined edge-clamp alternative.
 - Deterministic examples passed for left, right, bottom, and top clamping on a 1920 × 1080 negative-origin display, and for reclamping across changed positive- and negative-origin display contexts.
 
-The following mandatory Validation Contract evidence remains blocked or outstanding and is not counted as a pass:
+### Two-display follow-up, 2026-09-15
 
-- Physical multi-display anchoring and edge checks are blocked because only one display is attached.
+The built-in Color LCD and a Dell U4025QW are now connected in extended mode (mirroring off). System Information reports 7680 × 3240 pixels for the Dell, with a 3840 × 1620 point UI at 60 Hz; the built-in display remains the main display.
+
+The signed focused panel suite was rerun with both displays connected:
+
+```sh
+xcodebuild test -quiet -project Dropshot.xcodeproj -scheme Dropshot \
+  -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath /tmp/Dropshot17TwoDisplays-20260915 \
+  -only-testing:DropshotTests/DropZonePanelTests
+```
+
+Result: exit 0; all 9 panel tests passed, including the real status-item anchoring check. This is evidence for the current live anchor with two displays attached, not evidence that a physical drag was exercised on each display. The desktop-control tool supports complete drag-and-release operations but cannot pause with the mouse button held for an intermediate observation; a user-held drag was requested to complete that observation.
+
+#### Observed physical drag on Dell
+
+The user held an HEIC drag on the Dell while the Debug app from commit `70acc1d` was running (`/tmp/Dropshot17RootFinal-20260915/Build/Products/Debug/Dropshot.app`). The desktop tool observed “Drop HEIC here,” “Release to copy as JPEG,” and “Hold ⌥ for PNG”; its panel screenshot showed all content without clipping.
+
+Read-only AppKit/Core Graphics measurements during the held drag:
+
+| Measurement | Result (points) |
+| --- | --- |
+| Built-in screen frame | `(0, 0, 1728, 1117)` |
+| Built-in visible frame | `(0, 0, 1728, 1084)` |
+| Dell frame and visible frame | `(1728, 448, 3840, 1620)` |
+| Panel frame, converted to AppKit coordinates | `(4853, 1861, 202, 170)` |
+| Panel alpha / on-screen state | `1` / on screen |
+| Pressed mouse buttons | `1` (left held) |
+
+The panel is wholly inside the Dell's actual visible frame. Core Graphics reported `(4853, -914, 202, 170)` in top-origin coordinates; conversion uses the primary display's top edge at `1117`. Both displays have a backing scale of `2`. This validates physical placement and visible presentation on the Dell in the current right-and-above arrangement. It does not exercise an edge clamp or independently measure the status-button gap.
+
+The foreground application at observation time was Codex, not Dropshot. This confirms Dropshot was not foreground at that instant, but the user's reply prevents treating it as proof that Finder retained focus throughout the drag. The exact source fixture was not independently recorded.
+
+#### Observed physical drag on built-in display
+
+The first built-in attempt was confounded by Command-Tab: the user reported that the panel initially appeared on the built-in display, then moved to the Dell when they switched to Codex on the Dell to reply. The subsequent measurement showed the held pointer on the built-in display and the panel on the Dell. That observation does not establish incorrect initial placement; the initial claim that it proved a placement bug is withdrawn. No production code was changed on that basis.
+
+After the user moved Codex to the built-in display and repeated the held drag, the desktop tool again observed complete JPEG guidance without clipping. Measurements from the same running build were:
+
+| Measurement | Result (points) |
+| --- | --- |
+| Held pointer, AppKit coordinates | `(1102.30078125, 582.6171875)` |
+| Built-in visible frame | `(0, 0, 1728, 1084)` |
+| Panel frame, Core Graphics coordinates | `(1015, 39, 202, 170)` |
+| Panel frame, converted to AppKit coordinates | `(1015, 908, 202, 170)` |
+| Panel alpha / on-screen state | `1` / on screen |
+| Pressed mouse buttons | `1` (left held) |
+| Foreground application | Codex |
+
+The pointer and complete panel were on the built-in display, with the panel wholly within its actual visible frame. Together with the Dell observation, this passes visible physical placement on each display in the current right-and-above arrangement. Neither observation forces an edge clamp, independently measures the live status-button gap, or proves uninterrupted source-app focus. The observations use a Debug build rather than a Release Artifact.
+
+The following mandatory Validation Contract evidence remains outstanding and is not counted as a pass:
+
+- Physical multi-display edge checks and other representative arrangements remain outstanding. Visible-placement checks on both the built-in and Dell displays passed in the current arrangement.
 - Actual visibility and anchoring after switching Spaces, inside another application's full-screen Space, and across Stage Manager sets have not been visually exercised. Automated tests verify the AppKit collection policy and reposition notifications only.
 - A real cross-application drag remains necessary to verify that presentation does not change source-application focus; automated coverage verifies the nonactivating style and that the panel cannot become key or main.
 

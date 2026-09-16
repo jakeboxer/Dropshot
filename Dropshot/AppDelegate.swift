@@ -38,15 +38,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onCancelled: { [weak self] in
                 self?.dropCoordinator.cancelInteraction()
             },
-            onAcceptedDrop: { [weak self] _ in
-                self?.dropCoordinator.endDestinationInteraction()
+            onAcceptedDrop: { [weak self] acceptedDrop in
+                guard let coordinator = self?.dropCoordinator else { return }
+                Task {
+                    do {
+                        try await coordinator.accept(acceptedDrop)
+                    } catch {
+                        NSLog("Dropshot Clipboard Handoff failed.")
+                    }
+                }
             },
             onRejectedDrop: { [weak self] in
                 self?.dropCoordinator.cancelInteraction()
             }
         )
         dropZone.anchor(to: statusItem.button)
-        dropCoordinator = DropCoordinator(presentation: dropZone)
+        dropCoordinator = DropCoordinator(
+            converter: ImageConversion(),
+            clipboard: ClipboardPublication(),
+            presentation: dropZone
+        )
         dragObserver = AppKitDragObserver(
             onObservation: { [weak self] descriptor in
                 self?.dropCoordinator.observeDrag(descriptor)

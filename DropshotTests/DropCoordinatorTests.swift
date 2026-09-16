@@ -1,9 +1,60 @@
-import Foundation
+import AppKit
 import Testing
 @testable import Dropshot
 
 @MainActor
 struct DropCoordinatorTests {
+    @Test(arguments: [false, true])
+    func realHandoffPublishesBeforeSuccessAndNewDragReplacesFeedback(optionHeld: Bool) async throws {
+        let source = try #require(Bundle(for: ClipboardTestAdapter.self)
+            .url(forResource: "transparency", withExtension: "heic"))
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        let presenter = DropZonePresentationTestAdapter()
+        let coordinator = DropCoordinator(
+            converter: ImageConversion(),
+            clipboard: ClipboardPublication(pasteboard: pasteboard),
+            presentation: presenter
+        )
+        let descriptor = DragDescriptor(items: [.fileURL(source, contentType: .heic)])
+        try await coordinator.accept(try #require(DragClassifier.acceptDrop(
+            atDestination: descriptor, input: DroppedInput(fileURL: source), optionHeld: optionHeld
+        )))
+        let item = try #require(pasteboard.pasteboardItems?.first)
+        #expect(pasteboard.pasteboardItems?.count == 1)
+        let requestedType = NSPasteboard.PasteboardType(optionHeld ? "public.png" : "public.jpeg")
+        #expect(Set(item.types) == Set([requestedType, .tiff]))
+        #expect(item.data(forType: requestedType)?.isEmpty == false)
+        #expect(item.data(forType: .tiff)?.isEmpty == false)
+        #expect(presenter.presentation == .success(optionHeld ? .png : .jpeg, dropID: DropID(1)))
+        coordinator.mouseReleased()
+        coordinator.observeDrag(descriptor)
+        #expect(presenter.presentation == .guidance(optionHeld ? .png : .jpeg))
+        try await Task.sleep(for: .milliseconds(900))
+        #expect(presenter.presentation == .guidance(optionHeld ? .png : .jpeg))
+    }
+
+    @Test
+    func failedClipboardHandoffThrowsWithoutPresentingSuccess() async throws {
+        let presenter = DropZonePresentationTestAdapter()
+        let coordinator = DropCoordinator(
+            converter: ConversionTestAdapter(result: .success(ConvertedImage(
+                requestedFormatData: Data([1]), tiffData: Data([2])
+            ))),
+            clipboard: FailingClipboardTestAdapter(),
+            presentation: presenter
+        )
+        let source = URL(fileURLWithPath: "/unused.heic")
+        let accepted = try #require(DragClassifier.acceptDrop(
+            atDestination: DragDescriptor(items: [.fileURL(source, contentType: .heic)]),
+            input: DroppedInput(fileURL: source)
+        ))
+        await #expect(throws: FailingClipboardTestAdapter.Failure.rejected) {
+            try await coordinator.accept(accepted)
+        }
+        #expect(presenter.presentation == .hidden)
+    }
+
     @Test
     func promisedHEICUsesTheAcceptedDropConversionAndCleansItsInput() async throws {
         let source = try #require(Bundle(for: ClipboardTestAdapter.self)
@@ -216,6 +267,15 @@ private final class ClipboardTestAdapter: ClipboardPublishing {
 
     func publish(_ handoff: ClipboardHandoff) throws {
         handoffs.append(handoff)
+    }
+}
+
+@MainActor
+private final class FailingClipboardTestAdapter: ClipboardPublishing {
+    enum Failure: Error { case rejected }
+
+    func publish(_ handoff: ClipboardHandoff) throws {
+        throw Failure.rejected
     }
 }
 

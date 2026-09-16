@@ -3,15 +3,15 @@
 Dropshot is a lightweight macOS menu-bar utility for turning a dragged HEIC image into clipboard-ready image content.
 
 > [!NOTE]
-> Dropshot is currently in early development. The menu-bar app can observe and accept a single HEIC file-URL drag through its transient Drop Zone; complete cancellation, file-promise, feedback, and release validation remain in progress.
+> Dropshot is currently in early development. The menu-bar app connects single HEIC Accepted Drops to JPEG or PNG conversion, one-item Clipboard Handoff with TIFF fallback, and brief success feedback. Release validation remains in progress.
 
-## Planned workflow
+## Workflow
 
 1. Drag a single HEIC image from any macOS application.
 2. Drop it onto the temporary drop zone beneath the Dropshot menu-bar icon.
 3. Paste the converted image into another application.
 
-JPEG will be the default output format. Holding Option during the drag interaction will request PNG instead. The conversion is intended to publish the result directly to the clipboard without creating a user-visible permanent file.
+JPEG is the default output format. Holding Option when releasing the image requests PNG instead. Conversion publishes the result directly to the clipboard without creating a user-visible permanent file.
 
 ## Requirements
 
@@ -48,6 +48,8 @@ xcodebuild test \
 ```
 
 The unit-test target covers AppKit drag-pasteboard snapshots, descriptor-only Drag Observation classification, nonactivating Drop Zone presentation, destination-only Accepted Drop creation and rejection, and the Accepted Drop through Default Conversion or PNG Format Override and Clipboard Handoff workflow. It also covers operation-owned file-promise receipt and cleanup, cancellation before Clipboard Handoff, live modifier selection, and real HEIC conversion to owned JPEG/PNG bytes plus TIFF fallback. Pixel checks cover orientation, transparency, primary-image selection, and source preservation. The UI-test target currently contains launch smoke tests.
+
+For real AppKit file-URL and file-promise drag checks, build the separate [development drag source](tools/file-promise-drag-source/README.md). See [Clipboard Handoff validation](docs/vertical-slices/20-atomic-clipboard-handoff.md) for automated results and pending live checks.
 
 ## Project structure
 

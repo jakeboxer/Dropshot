@@ -100,11 +100,19 @@ After the user moved Codex to the built-in display and repeated the held drag, t
 
 The pointer and complete panel were on the built-in display, with the panel wholly within its actual visible frame. Together with the Dell observation, this passes visible physical placement on each display in the current right-and-above arrangement. Neither observation forces an edge clamp, independently measures the live status-button gap, or proves uninterrupted source-app focus. The observations use a Debug build rather than a Release Artifact.
 
-The following mandatory Validation Contract evidence remains outstanding and is not counted as a pass:
+#### User-confirmed manual checks
 
-- Physical multi-display edge checks and other representative arrangements remain outstanding. Visible-placement checks on both the built-in and Dell displays passed in the current arrangement.
-- Actual visibility and anchoring after switching Spaces, inside another application's full-screen Space, and across Stage Manager sets have not been visually exercised. Automated tests verify the AppKit collection policy and reposition notifications only.
-- A real cross-application drag remains necessary to verify that presentation does not change source-application focus; automated coverage verifies the nonactivating style and that the panel cannot become key or main.
+After the measured two-display checks, the user reported: “manually confirmed all 3 work.” This confirms the three follow-up checks provided in the conversation:
+
+| Check | Expected behavior | Result |
+| --- | --- | --- |
+| Right screen edge | Move the status item toward the right edge and drag an HEIC; the complete panel remains on-screen even when centering must yield to clamping. Repeat on both displays. | Pass, user-confirmed |
+| Another desktop Space | Start an HEIC drag in another Space; the panel appears there without switching desktops. | Pass, user-confirmed |
+| Full-screen Finder | Drag an HEIC from full-screen Finder; the panel appears above Finder and the drag remains uninterrupted. | Pass, user-confirmed |
+
+These results are manual user testimony, not additional agent measurements or captured screenshots. Together with the automated suite and measured placement on both physical displays, they complete the agreed implementation acceptance checks for issue #17. No production changes were needed after validation.
+
+Release Artifact validation remains a separate release gate. The current record does not claim testing of additional physical display layouts, left-edge positions, Stage Manager sets, or a separate before/after foreground-app trace. Repeat and capture the applicable release matrix below against the actual Release Artifact; these broader release checks do not reopen the three confirmed implementation checks.
 
 Repeat the live status-item test for every build. For release evidence, also record the Release Artifact, display layout and scale, source application, active Space/full-screen state, status-item edge position, expected centered/clamped frame, observed frame, source-app focus before and after presentation, and a screenshot or 60-fps recording for each representative physical arrangement.
 
@@ -119,4 +127,4 @@ Repeat the live status-item test for every build. For release evidence, also rec
 
 ## Review
 
-Independent Standards review reported no findings. Independent Spec review reported one acceptance finding: real-system validation is partial. The implementation aligns with the positioning, clamping, and collection-policy requirements, but issue #17 cannot be counted fully accepted until the outstanding real-system checks above pass.
+Independent Standards review reported no findings. Independent Spec review initially reported one acceptance finding: real-system validation was partial. Subsequent measured placement on both physical displays and the user's confirmation of edge, Space, and full-screen checks resolve that implementation acceptance finding. The implementation is ready; the broader Release Artifact validation remains part of release preparation.
